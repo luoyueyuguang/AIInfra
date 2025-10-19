@@ -4,46 +4,56 @@
 
 > Author by: 何晨阳
 
-!!!!!!!!!同样，太大模型了。逐篇改好逐篇过哈
+前文介绍了k8s的主体功能，本节将介绍对k8s的容器监控与日志机制，负责对系统整体运行健康状态的监测。通过监控与日志，可以帮助我们全方位的掌控系统健康状态，更加高效的排查问题。
 
-## 为什么需要监控组件？
+## 容器监控体系
 
-一个系统想要保障服务的稳定性，提升用户体验，必须具备完善的监控体系。一个好的监控体系就像一个”健康仪表盘“，能够帮助我们及时掌握系统健康度，未雨绸缪，提前发现问题，解决问题。
+容器监控体系旨在实时追踪容器化应用与集群资源的状态，为故障排查、性能优化和容量规划提供数据支撑。本小节将从监控指标、数据采集与监控工具三个方向来介绍。
 
-### Kubenetes 监控有哪些目标？
-
+监控主要有以下几个作用：
 - 资源利用率监控：实时跟踪 CPU、内存、磁盘、网络等资源使用情况。
 - 应用健康检查：确保容器进程存活、服务可达性、响应延迟可控。
 - 故障诊断与根因分析：快速定位性能瓶颈（如内存泄漏、CPU 争抢）。
 - 自动化运维支持：为 HPA（自动扩缩容）、VPA（垂直扩缩容）提供数据依据。
 
-### Kubenetes 监控指标
+如下图所示，一个成熟监控方案中主要包括指标采集、监控工具、告警等几个模块。
+![监控体系](./images/06monitorarc.png)
+
+### 监控指标
+
+监控数据主要来源于监控对象，在k8s中，监控对象可以分为应用层、Node层、容器层以及k8s对象状态。
 
 #### 应用层（Application）
 
-由应用层自定义上传相关监控指标，比如常见的请求时延、数据库 CRUD 的耗时、错误数等。
+由应用层自定义上传相关监控指标，不同系统的监控指标又各不相同。一些常见的指标如下：
 
-#### Node 层
+- **延迟**：比如SQL执行延迟，用于识别慢查询、网络瓶颈或代码性能问题。
+- **流量**：单位时间内的请求量或数据吞吐量，评估负载压力，触发自动扩缩容（HPA）。
+- **错误数**：失败请求数，监控服务异常。
+- **饱和度**：资源利用率接近上限的程度，用于预防资源耗尽导致雪崩效应。
 
-关注指标主要包括以下指标：
+#### Node层指标
 
-- CPU 使用率：node_cpu_seconds_total
-- 内存使用量：node_memory_MemTotal_bytes、node_memory_MemAvailable_bytes
-- 磁盘 I/O：node_disk_io_time_seconds
-- 网络流量：node_network_receive_bytes_total
+Node层主要关注节点资源使用、健康状态及底层服务运行情况。关注指标主要包括以下：
 
-#### 容器层(Pod/Container)
+- CPU 使用率：node_cpu_seconds_total，用于识别CPU过载。
+- 内存使用量：node_memory_MemTotal_bytes、node_memory_MemAvailable_bytes。
+- 磁盘 I/O：node_disk_read_bytes_total（读取量）、node_disk_written_bytes_total（写入量）。
+- 网络流量：node_network_receive_bytes_total（接收流量）和node_network_transmit_bytes_total（发送流量）。
+
+
+#### 容器层指标
 
 容器层关注的指标和 Node 层类似，除了一些基础指标外，还关注一些容器的特有指标：
 
-- 容器 CPU 使用率
-- 容器内存使用量
-- 容器重启次数
-- 容器网络流量
+- 容器CPU使用率：表示容器在单位时间内消耗的CPU资源占其请求（Request）或限制（Limit）的比例，反映计算密集型任务的资源压力。
+- 容器内存使用量：容器实际占用的物理内存。
+- 容器重启次数：容器因异常退出（如崩溃、探针失败）而被Kubernetes自动重启的次数，反映应用稳定性。
+- 容器网络流量：包括接收（入站）和发送（出站）的数据量，用于分析应用通信模式及网络性能。
 
 ### 数据采集工具 cAdvisor
 
-cAdvisor 由 Goole 开发的容器监控工具，默认集成在 kubelet 中，为容器化提供基础监控能力。
+cAdvisor 由 Goole 开发的容器监控工具，是Kubernetes生态中容器资源监控的核心组件，默认集成在 kubelet中，专注于实时收集、聚合和展示容器级别的资源使用数据，为容器化提供基础监控能力。
 
 #### 主要功能
 
@@ -61,7 +71,7 @@ cAdvisor 由 Goole 开发的容器监控工具，默认集成在 kubelet 中，�
 事件记录：
 - 容器启动、停止、OOM（内存溢出）等事件。
 
-#### 数据采集
+#### 数据采集过程
 
 数据采集主要包括两个部分：machineInfo 和 containerInfo。
 
@@ -85,40 +95,50 @@ machine 相关的数据主要读取机器的系统文件数据，然后由一个
 
 ### 监控工具 Prometheus
 
-!!!!!!!!!一个内容只有一句话，那么这个内容就不用单独列出来了，证明这个内容不重要，不值得深入，要不就深入展开哈。
+#### 核心设计
 
-Prometheus 是一个 CNCF 工具，是 Kubernetes 中主流的监控工具，原生的支持对 K8S 中各个组件进行监控。
+Prometheus是一款开源的时序数据库与监控告警系统，专为云原生环境设计，已成为Kubernetes生态中监控事实标准。原生的支持对K8S中各个组件进行监控。
 
-#### 主要模块
+架构图如下所示，主要包括以下几个核心模块：
 
-其主要包括以下几个模块：
-
-Prometheus Server：
+**Prometheus Server**：作为监控系统的大脑，主要工作是根据配置定期从目标拉取指标。
 
 - 抓取器（Retriever）：定期从配置的目标（如 Exporters、应用端点）拉取指标。
 - 时序数据库（TSDB）：高效存储时间序列数据。
 - HTTP Server：提供查询接口（PromQL）和 Web UI。
 
-Exporters：
+**Exporters**：将第三方系统（如Node Exporter、MySQL Exporter）的指标转换为Prometheus格式。
 
 - 节点导出器（Node Exporter）：采集主机资源指标（CPU、内存、磁盘）。
 - 应用导出器（如 JMX Exporter）：将应用指标转换为 Prometheus 格式。
 
-Pushgateway：
+**Pushgateway**：用于接收短期任务推送的指标，供Prometheus拉取。
 
 - 用于短期任务或批处理作业的指标暂存（Prometheus 默认拉取模型不适用）。
 
-Alertmanager：
+**Alertmanager**：根据监控中的设置的指标阈值发送警报。同时支持对告警去重、抑制和分组。
 
 - 处理 Prometheus 的告警通知，支持去重、分组、静默和路由到不同渠道（Email、Slack 等）。
 
-Grafana：
+**Client Libraries**：可以作为一个Library集成到应用中，暴露自定义指标。
 
-- 可视化工具，通过 Prometheus 数据源创建仪表盘。
+比如go接入示例如下所示：
+```go
+httpRequests := prometheus.NewCounterVec(
+  prometheus.CounterOpts{
+    Name: "http_requests_total",
+    Help: "Total HTTP requests",
+  },
+  []string{"method", "path"},
+)
+prometheus.MustRegister(httpRequests)
+```
 
-![prometheus](./images/06prometheus.png)
+![Prometheus](./images/06prometheus-architecture.gif)
 
 #### 指标类型
+
+Prometheus中主要包括以下几类指标类型：
 
 - Counter：计数器，单调递增的累计值，比如请求个数等。
 - Gauge：仪表盘，可增可减的瞬时值，如 CPU、内存等。
@@ -187,11 +207,11 @@ groups:
 
 ## 容器日志
 
-日志通常是我们排查问题的一大杀器，在云原生中，容器应用和传统应用的日志管理存在很大区别。本节将介绍 Kubernetes 中的日志管理方案。
+日志通常是我们排查问题的一大杀器，在云原生中，容器应用和传统应用的日志管理存在很大区别。本节将介绍k8s中的日志管理方案。
 
 ### Kubernetes 日志种类
 
-K8S 中主要存在两种类型的日志：
+k8s中主要存在两种类型的日志：
 
 - 集群组件日志：1）运行在容器中的 scheduler、kube-proxy、kube-apiserver 等。2）未运行在容器中的 kubelet 和 runtime 等。
 - Pod 日志
@@ -200,11 +220,11 @@ K8S 中主要存在两种类型的日志：
 
 Pod 的日志管理是基于 Docker 引擎，日志的存储都是基于 Docker 的日志管理策略。
 
-![prometheus](./images/06podlog.png)
+![日志方案](./images/06podlog.png)
 
 如果 Docker 日志驱动为 json-file，那么在 k8s 每个节点上，kubelet 会为每个容器创建一个/var/log/containers/的软链接，并会将其链接到/var/log/pods/目录下相应 pod 目录的容器日志。被链接的日志文件也是软链接，最终链接到 Docker 容器引擎的日志存储目录：/docker 数据盘目录/containers 下相应容器的日志。
 
-![prometheus](./images/06podlog.png)
+![proproxy](./images/06podlogv2.png)
 
 可以看出这个地方进行了两次软链接，为什么要做两次软链接呢？
 
@@ -253,3 +273,5 @@ k8s 容器监控已形成以 Prometheus 为核心的多层次生态，结合 cAd
 - https://www.cnblogs.com/evescn/p/18256900
 - https://www.cnblogs.com/vinsent/p/15830271.html
 - https://www.cnblogs.com/zhangmingcheng/p/16452365.html
+- https://www.huweihuang.com/kubernetes-notes/monitor/cadvisor-introduction.html
+- https://flashcat.cloud/blog/prometheus-architecture/

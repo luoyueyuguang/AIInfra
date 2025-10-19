@@ -2,7 +2,7 @@
 
 # 01.万卡 AI 集群建设挑战
 
-Author by: 
+Author by: wangxinxin
 
 > 这个内容还没有，非常希望您参与到这个开源项目中，B 站给 ZOMI 留言哦！
 

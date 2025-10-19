@@ -28,11 +28,15 @@ class PositionalEncoding(nn.Module):
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
         
-        pe = pe.unsqueeze(0).transpose(0, 1)
+        # 修改为 [1, max_len, d_model] 以适配 batch_first=True
+        pe = pe.unsqueeze(0)  # [1, max_len, d_model]
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = x + self.pe[:x.size(0), :]
+        # x: [batch_size, seq_len, d_model]
+        # pe: [1, max_len, d_model]
+        # 正确地添加位置编码到序列长度维度
+        x = x + self.pe[:, :x.size(1), :]
         return self.dropout(x)
 
 def attention(query, key, value, mask=None, dropout=None):

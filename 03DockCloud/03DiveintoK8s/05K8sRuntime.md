@@ -8,21 +8,38 @@
 
 为什么需要抽象出 CRI 这个概念？
 
-> 首先是统一容器生命周期管理接口，避免 Kubernetes 与特定容器运行时强绑定。支持多种容器运行时（Docker、containered、CRI-O）。
+> 首先是统一容器生命周期管理接口，避免 Kubernetes 与特定容器运行时强绑定。支持多种容器运行时（Docker、containered、CRI-O）。其次是社区需要为不同运行时维护多套代码（如 dockershim、rktlet），阻碍生态发展。
 
 ## CRI 核心组件
+
+在k8s中，CRI（ContainerRuntimeInterface）的核心组件包括kubelet、CRIshim和ContainerRuntime。它们共同协作，实现容器生命周期的管理。以下是三个组件简要介绍：
 
 - kubelet：负责管理节点上的 Pod 和容器，通过 CRI 与容器运行时交互。
 - CRI shim：实现 CRI 接口的适配层（如 dockershim、containerd-shim），作为 gRPC 服务端负责将 CRI 请求的内容转为具体的容器运行时 API 并响应。
 - Container Runtime：实际执行容器操作的引擎（如 containerd、CRI-O）。
 
-!!!!!!!有图片要有描述，不能之放一张图，搞不清楚这张图要表达什么。
+如下图所示，Kubelet是Kubernetes节点上的核心组件，负责管理Pod和容器的生命周期。它是CRI的调用方，通过CRI接口与容器运行时交互。Kubelet通过CRI定义的gRPC接口与容器运行时通信，无需关心底层实现细节。其核心功能包括：
+
+- **Pod管理**：根据API Server下发的Pod配置，创建、更新或删除 Pod。
+- **容器操作**：通过CRI接口调用容器运行时，执行容器的创建、启动、停止和删除。
+- **资源监控**：收集节点资源使用情况（CPU、内存、存储等）并上报给 API Server。
+- **健康检查**：执行容器存活探针（Liveness Probe）和就绪探针（Readiness Probe）。
+
+**CRI shim**是容器运行时与CRI接口之间的适配层，负责将CRI请求转换为容器运行时能理解的指令。主要有以下三个主要功能：
+
+- **协议转换**：将CRI的gRPC请求转换为容器运行时的原生API（如DockerAPI或containerdAPI）。
+- **兼容性支持**：帮助非CRI原生运行时（如早期的Docker）接入k8s。
+- **功能扩展**：实现CRI接口的扩展功能（如日志管理、流式执行命令）。
+
+**Container Runtime**是实际管理容器生命周期的底层引擎，负责创建、运行和销毁容器。主要能力包括根据OCI规范创建容器进程、拉取和存储和删除容器镜像、通过Linux内核功能（cgroups、namespace）实现资源限制和隔离。
+
+这种分层设计实现了k8s与容器运行时的解耦，使得用户可以根据需求灵活选择运行时（如安全容器Kata、轻量级运行时CRI-O），同时保持生态的统一性。
 
 ![CRI 架构](./images/05cri.png)
 
 ## kubelet 与 CRI 交互原理
 
-整体架构如下图所示，当 k8s 创建一个 Pod 后，就会通过调度器选择一个具体的节点来运行。接着 kubelet 就会通过 SyncLoop 来执行具体的操作。
+整体架构如下图所示，当 k8s 创建一个 Pod 后，就会通过调度器选择一个具体的节点来运行。接着 kubelet 就会通过 SyncLoop 来执行具体的操作。本节主要介绍kubelet与CRI的交互原理。
 
 ![CRI 架构](./images/05criinfra.png)
 
@@ -59,11 +76,11 @@ SyncLoop 是 kubelet 的工作核心，主要负责 Pod 生命周期的核心控
 
 ### CRI 规范
 
-CRI 中主要定义了两类接口：
+CRI是k8s中用于解耦Kubelet与容器运行时的核心规范，旨在标准化容器生命周期的管理接口。CRI中主要定义了两类接口：
 
 - ImageService：定义拉取、查看和删除镜像等操作。
 
-```
+```go
 // ImageService defines the public APIs for managing images.
 service ImageService {
     
@@ -82,9 +99,24 @@ service ImageService {
 
 - RuntimeService：定义容器相关的操作。管理容器的生命周期，以及与容器交互的调用等操作。主要包括 container 和 PodSandbox 相关的管理接口，包括 exec、attach 等。
 
+```go
+// ImageService 定义镜像操作接口
+service ImageService {
+  // 拉取镜像
+  rpc PullImage(PullImageRequest) returns (PullImageResponse) {}
+  // 列出镜像
+  rpc ListImages(ListImagesRequest) returns (ListImagesResponse) {}
+  // 删除镜像
+  rpc RemoveImage(RemoveImageRequest) returns (RemoveImageResponse) {}
+  // 其他方法...
+}
+```
+
+
+
 ### CRI 生命周期
 
-通过 kubectl 来运行一个 Pod 时，会执行以下动作：
+创建一个Pod整体流程如下图所示，通过 kubectl 来运行一个 Pod 时，会执行以下动作：
 
 - 首先调用 RunPodSandbox 接口来创建一个 Pod 容器，Pod 容器是用来持有容器的相关资源的，比如说网络空间、PID 空间、进程空间等资源。
 - 接着调用 CreatContainer 接口，在 Pod 容器的空间创建业务容器。
@@ -95,7 +127,7 @@ service ImageService {
 
 ### CRI streaming 接口
 
-流式接口不仅可以节省资源，还能保证连接的可靠性。当执行 kubectl exec 命令时，其执行过程如下：
+流式接口不仅可以节省资源，还能保证连接的可靠性，调用流程如下图所示。当执行 kubectl exec 命令时，其执行过程如下：
 - 第一步：kubectl 将 exec 请求封装为一个 HTTP 请求，该请求将被 API Server 解析。
 - 第二步：API Server 将请求转发至目标 Pod 所在节点的 kubelet，建立与 kubelet 的 WebSocket 连接，用于实时数据传输。
 - 第三步：kubelet 接收请求后，通过 CRI 与容器运行时交互以执行命令。
@@ -119,4 +151,5 @@ CRI shim 有哪些优势呢？
 
 ## 参考与引用
 - https://www.cnblogs.com/zhangmingcheng/p/17495311.html
+- https://jimmysong.io/book/kubernetes-handbook/interfaces/cri/
 
