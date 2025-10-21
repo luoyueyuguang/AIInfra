@@ -1,20 +1,27 @@
 <!--Copyright © ZOMI 适用于[License](https://github.com/Infrasys-AI/AIInfra)版权许可-->
 
 # K8S 容器持久化存储
-Author by: 何晨阳，ZOMI
+
+> Author by: 何晨阳
 
 容器持久化存储是有状态服务容器化的基石，解决了临时存储无法满足数据持久性、共享性和高可用性的核心痛点。从以下三个视角可以看出其存在的必要性与合理性：
+
 - **开发者视**：只需声明存储需求，无需关注底层实现。
 - **运维视角**：自由更换存储后端（NFS/云盘/分布式存储）不影响业务。
 - **核心价值**：实现应用与基础设施的关注点分离。
 
 ## 核心概念与架构
+
 首先了解容器持久化相关的基础概念，主要包括一些概念的抽象。
+
 ### 存储抽象层
+
 Kubernetes 的存储抽象层是解耦应用与底层存储基础设施的核心设计，其核心组件与逻辑关系如下：
+
 ![CRI 架构](./images/02storagedfi.png)
 
 ### 核心组件关系
+
 其中核心组件的角色、生命周期关系如下表所示：
 
 | 组件 | 角色 | 生命周期 | 创建者 |
@@ -24,9 +31,11 @@ Kubernetes 的存储抽象层是解耦应用与底层存储基础设施的核心
 | StorageClass (SC) | 存储动态供应模板 | 集群级别长期存在 | 管理员 |
 
 ## 存储类型详解
+
 为了支持不同存储介质，支持了多种不同的卷类型。
 
 ### 卷类型比较
+
 Kubernetes 中主要存储卷类型的对比分析，主要特点、适用场景如下所示：
 
 | 类型 | 特点 | 适用场景 | 示例 |
@@ -37,6 +46,7 @@ Kubernetes 中主要存储卷类型的对比分析，主要特点、适用场景
 | 分布式存储 | 可扩展性强 | 大数据平台 | GlusterFS, Ceph RBD |
 
 ### 访问模式
+
 Kubernetes 中存储卷的访问模式（Access Modes）定义了存储介质如何被节点（Node）或 Pod 挂载和使用。以下是核心访问模式的详细说明及适用场景：
 
 | 类型 | 特点 | 适用场景 | 
@@ -57,6 +67,7 @@ Volume（存储卷） 是用于在容器之间或容器重启后持久化数据�
 - 配置管理：通过 Volume 向容器注入配置文件（如 ConfigMap、Secret）。
 
 ### 临时卷类型
+
 临时卷的使用说明、和场景示例如下所示：
 
 | 类型 | 说明 | 场景示例 | 
@@ -66,7 +77,8 @@ Volume（存储卷） 是用于在容器之间或容器重启后持久化数据�
 | secret	 | 类似 ConfigMap，但用于存储敏感数据（如密码、证书），数据会 base64 编码	 | 数据库密码、API 密钥挂载 | 
 | downwardAPI	 | 将 Pod 或容器的元数据（如名称、IP）挂载为文件	 | 应用获取自身运行时信息 | 
 
-### 持久化存储类（跨 Pod 生命周期）
+### 持久化存储类
+
 以下是持久化存储类型及场景示例：
 
 | 类型                          | 说明                                                                 | 场景示例                     |
@@ -125,6 +137,7 @@ spec:
 ### 动态生命周期管理
 
 StorageClass 控制机制
+
 ```yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
@@ -138,7 +151,7 @@ parameters:
   skuname: Premium_LRS
 ```
 
-延迟绑定(WaitForFirstConsumer)
+延迟绑定(WaitForFirstConsumer)流程如下：
 
 ![延迟绑定](./images/02storagetype.png)
 
@@ -179,7 +192,9 @@ volumeBindingMode: WaitForFirstConsumer
 ```
 
 ### PV/PVC 状态机
+
 PV 的状态转换规则如下：
+
 - Available → Bound：PVC 与 PV 的 storageClassName、accessModes、容量 匹配，且 PV 处于可用状态。
 - Bound → Released：绑定的 PVC 被删除，且 PV 的 persistentVolumeReclaimPolicy 为 Retain。
 触发操作：kubectl delete pvc <name>。
@@ -190,6 +205,7 @@ PV 的状态转换规则如下：
 ![pv 状态机](./images/02pv_state.png)
 
 PVC 的状态转换规则如下：
+
 - Pending → Bound：找到匹配的 Available PV；StorageClass 的 Provisioner 成功创建 PV；PV 控制器完成绑定。
 - Bound → Lost：条件：绑定的 PV 被手动删除或存储后端故障导致 PV 不可用。
 
@@ -200,6 +216,7 @@ PVC 的状态转换规则如下：
 ### 数据保护机制
 
 卷快照
+
 ```yaml
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshot
@@ -224,6 +241,7 @@ kubectl edit pvc my-pvc # 修改 storage 请求大小
 存储配额：限制命名空间存储用量
 
 ## 总结与思考
+
 Kubernetes 存储系统通过抽象层设计与插件化架构，已成为云原生生态的核心支柱。其当前设计在灵活性、扩展性上表现突出，但面临性能优化、多租户安全等挑战。未来发展方向将聚焦于高性能（如 PMEM、NVMe-oF）、生态融合和安全合规。
 
 ## 参考与引用

@@ -1,19 +1,30 @@
 <!--Copyright © ZOMI 适用于[License](https://github.com/Infrasys-AI/AIInfra)版权许可-->
 
-# 06.通信域与 PyTorch 实现
+# 05.通信域与 PyTorch 实现
 
-Author by: SingularityKChen
+作者：SingularityKChen & 陈彦伯
 
-本节围绕 **通信域（Communicator）** 与 **PyTorch 分布式**，介绍：
+本章的前四节介绍了集合通信的基本概念并介绍了一些常用通信原语和通信算法。在整个 AI 系统中，通信算法与通信原语位于较高抽象层级，主要面向分布式训练算法与 AI 模型设计者。在此之下，**通信域（Communicator）** 是一个重要的中间层次。它屏蔽了底层通信链路的硬件细节差异、集中维护集合通信的元信息，为上层算法实现和调用提供了诸多便利。本节首先从一个较高的视角概述通信域的原理与概念，之后以 PyTorch 为例了解其代码实现。
+
+## 通信域
+
+通信的本质是数据在处理单元之间的传输。我们不妨将 AI 系统类比为一个“污水处理厂”：如果输入数据是“污水”，那么服务器就是处理水的“工厂”，而计算单元（如 CPU、GPU 和 NPU 等）就是工厂中的“净化器”。多个工厂与净化器彼此之间通过水管相连，具备相应的拓扑结构，我们以此类比集合通信中的通信链路。多个工厂和净化器的同时作业就类似并行计算，只不过服务器和计算单元不像人一样懂得变通，他们需要清晰的指令，包括数据的处理方式与收发去向等。
+
+基于上述类比，我们来看几个有关集合通信与通信域的重要概念。
+
+- **节点（node）** 和 **rank**：集合通信中一般将一台服务器抽象为一个节点。一个节点下可能包含多个 rank，即服务器中搭载的多个计算单元。在并行计算任务中，每个节点和 rank 都会被赋予一个唯一的**全局 ID**，这是为了方便统一地指定数据的处理方式与收发去向。在每个节点中， ranks 还会被赋予一个 **local ID**，这是为了方便一些需要节点内互传的通信算法，如 Reduce、Gather 等。
+- **进程（process）** 与**进程组（group）**：注意，进程与 ranks 之间并不是一一对应的关系。在复杂的 AI 训推任务中，计算单元会被动态地分配
+- 上下文：由于
+- **拓扑（topology）**：即节点、计算单元之间的链路信息。与上下文信息一样，通信域的拓扑信息一般由通信后端统一管理。
+
+不了解集合通信的读者可能会提出一个很自然的问题：*为什么通信域里要维护这么多信息？* 这是因为当设备数量、网络拓扑等条件不同时，即便是同一个通信算法的具体实现也是不一样的。换句话说，通信域中所维护的信息是为了让上层封装（如下文会讲到的 `torch.distributed`）得以自动选择合适的算法实现。
+
+**通信域（Communicator）**
 
 1) 通信域、进程、进程组与 Rank 的关系；
 2) 模型并行/数据并行/流水并行下的通信域划分；
 3) PyTorch 如何通过 `torch.distributed` 调用 P2P 与集合通信原语；
 4) 训练时“计算–通信”并行（overlap）的底层机制。
-
-本章是集合通信概览的最后一部分，如下图所示，与模型训练中的“分布式并行”和 AI 集群建设中的“网络”紧密对应。
-
-![05PyTorchCC01](./images/05PyTorchCC01.png)
 
 ## 通信域、Rank、进程和进程组关系
 
@@ -30,9 +41,9 @@ Author by: SingularityKChen
 
 ### 进程、进程组与 Rank
 
-- **进程（process）**：由 OS 管理，PID 唯一；同一进程可属于多个进程组。
+<!-- - **进程（process）**：由 OS 管理，PID 唯一；同一进程可属于多个进程组。
 - **进程组（group）**：参与同一通信域的一组进程；每个进程在组内有 **rank**（0…group_size-1）；
-- **rank**：默认全局进程组（`WORLD`）的规模与序号；**local_rank** 是节点内 GPU/NPU 序号。
+- **rank**：默认全局进程组（`WORLD`）的规模与序号；**local_rank** 是节点内 GPU/NPU 序号。 -->
 
 ### 并行方式与通信域
 
@@ -143,3 +154,9 @@ Host 下发与 Device 执行是**异步**的：先 Record event，再在目标 S
 <html>
 <iframe src="https://player.bilibili.com/player.html?aid=1155715743&bvid=BV1VZ421g7jY&cid=1582802300&page=1&as_wide=1&high_quality=1&danmaku=0&autoplay=0" width="100%" height="500" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
 </html>
+
+## 参考资料
+
+- [PyTorch Distributed Overview](https://pytorch.org/docs/stable/distributed.html)
+- https://en.wikipedia.org/wiki/Mesh_networking
+- https://en.wikipedia.org/wiki/NVLink#Service_software_and_programming

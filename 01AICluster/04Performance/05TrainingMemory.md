@@ -1,6 +1,6 @@
 <!--Copyright © ZOMI 适用于[License](https://github.com/Infrasys-AI/AIInfra)版权许可-->
 
-# 大模型训练内存与参数计算
+# 05.大模型训练内存与参数计算
 
 > Author by: 刘凯旋
 

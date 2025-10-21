@@ -1,18 +1,18 @@
 <!--Copyright © ZOMI 适用于[License](https://github.com/Infrasys-AI/AIInfra)版权许可-->
 
-# 大模型微调基础
+# 01.大模型微调基础
 
 > Author by: 许起星
 
 一个大模型从架构设计出发，到真正落地到使用是有一段很长的过程的，从预训练使大模型具备通用的能力，到传统的有监督微调使模型能够适应特定领域的需求，此外，为了使模型能够与人类进行交互，还少不了指令微调和强化学习微调，最后一个调好的模型又需要经过部署才能真正被人使用。
 
-我们可以看到，微调在这个过程中占了不少比重，甚至可以说是发挥着极其重要的作用。在本节中，我们将从整体地视角来看待把握微调，主要帮读者捋顺微调是如何一步步发展的，以及当前主流微调方法有哪些，进而读者可以对微调有一个宏观上的把握。
+我们可以看到，微调在这个过程中占了不少比重，甚至可以说是发挥着极其重要的作用。广义而言，微调指的是预训练阶段之后让模型在小规模数据集上进行再次训练调整（包含指令微调、以及与人类意图对齐的强化学习），狭义而言，指的是指令微调（现在社区大部分人把指令微调等同于有监督微调，但二者在历史的概念上并不完全等同，后续我们会分析）。在本节中，我们将从整体地视角来看待把握广义上微调，主要帮读者捋顺微调是如何一步步发展的，以及当前主流微调方法有哪些，进而读者可以对微调有一个宏观上的把握。
 
-## 微调的发展之路
+## 1. 微调发展之路
 
 微调的发展大致可以分为三个阶段：特征迁移时代（2013–2017）、任务微调时代（2018–2020）和快速发展时代（2021–至今）。这三个阶段不单单反映了技术方法的演进，更体现了模型与人类交互方式的转变：从借用通用特征，到适配特定任务，再到理解人类意图并遵循价值观。微调的目标从提升单一任务指标，逐步发展为塑造模型的通用能力、安全边界与推理行为。
 
-![微调的发展之路](images/01Introduction03.png)
+![微调的发展之路](./images/01Introduction03.png)
 
 **特征迁移时代（2013–2017）**。在深度学习早期，NLP 领域尚未形成统一的预训练范式。2013 年，Mikolov 等人提出的 Word2Vec 以及随后的 GloVe 开创了静态词向量时代。这些模型在大规模语料上预训练得到固定维度的词嵌入，作为下游任务（如文本分类、情感分析）的输入特征。此时的“微调”通常指冻结词向量，仅训练任务特定的浅层网络（如 CNN、RNN 或 MLP）。
 
@@ -22,15 +22,22 @@
 
 BERT 及其后继者（如 RoBERTa、ALBERT）迅速在 GLUE、SQuAD 等多个基准数据集上刷新纪录，微调成为提升任务性能的“黄金标准”。然而，这一阶段的微调仍是任务封闭式的：每个任务需独立微调一个模型，模型无法理解自然语言指令，还难以与人类进行真正产生交互。
 
-**快速发展时代（2021–至今）**。随着 GPT-3 展示出强大的上下文学习能力，研究者意识到语言模型的价值不在于完成单一任务，而在于作为通用智能体与人类交互协作。在这一阶段，微调得到了快速的发展，其主要可以从两个并行的主线理解，一个是促使模型与人类意图对齐的主线，另外一个是如何更高效地微调模型主线。首先是在 2021-2022 年，FLAN 与 T0 系统性验证了指令微调的有效性，使模型真正开始走向与人类交互的道路。同期，CoT 通过思维链激发多步推理，并迅速被纳入 SFT 数据，使模型“学会思考”，让模型能够像人类一样一步一步输出自己的思考过程。2022 年，InstructGPT 引入 RLHF，通过人类偏好数据训练奖励模型，并结合 PPO 强化学习优化策略，首次实现大规模人类价值观对齐。次年，DPO 提出一种简洁高效的替代方案——无需显式奖励模型和强化学习，仅用一个监督式损失函数即可直接优化偏好对，在效果媲美 RLHF 的同时大幅降低实现复杂度，迅速成为开源社区主流。2024-2025 年对齐技术进一步精细化，读者感兴趣再自行去阅读相关文献如 ORPO（Odds Ratio Preference Optimization）、KTO（Kahneman-Tversky Optimization）等。这一条主线让模型从 BERT 时代仅能机械地执行特定任务转变成能与人类交互地真正的人工智能，极大地促进了人工智能的发展。另外一条主线则是微调效率的革命，面对百亿、千亿参数模型带来的显存与存储压力，这条主线是让大模型为不同组织特定需求的对齐落地的重要技术。早在 2019 年，Adapter 就被提出用于高效微调 BERT，首次系统性验证“冻结主干 + 插件微调”的可行性，为 PEFT 奠定思想基础，随着 GPT-3 展示千亿参数模型的潜力，研究者亟需更高效的微调方案。2021 年成为 PEFT 的“黄金元年”，三大代表性方法相继提出，分别是 Prefix Tuning、Prompt Tuning 和 LoRA。如下图所示，在 2021 年之后，PEFT 在各个领域（如 LLM、VFM 等）上激增，由于 LoRA 的强大优点，它被广泛集成到主流深度学习框架，进一步促进了后续 PEFT 的发展。
+**快速发展时代（2021–至今）**。随着 GPT-3 展示出强大的上下文学习能力，研究者意识到语言模型的价值不在于完成单一任务，而在于作为通用智能体与人类交互协作。在这一阶段，微调得到了快速的发展，其主要可以从两个并行的主线理解，一个是促使模型与人类意图对齐的主线，另外一个是如何更高效地微调模型主线。首先是在 2021-2022 年，FLAN 与 T0 系统性验证了指令微调的有效性，使模型真正开始走向与人类交互的道路。同期，CoT 通过思维链激发多步推理，并迅速被纳入 SFT 数据，使模型“学会思考”，让模型能够像人类一样一步一步输出自己的思考过程。2022 年，InstructGPT 引入 RLHF，通过人类偏好数据训练奖励模型，并结合 PPO 强化学习优化策略，首次实现大规模人类价值观对齐。次年，DPO 提出一种简洁高效的替代方案——无需显式奖励模型和强化学习，仅用一个监督式损失函数即可直接优化偏好对，在效果媲美 RLHF 的同时大幅降低实现复杂度，迅速成为开源社区主流。2024-2025 年对齐技术进一步精细化，读者感兴趣再自行去阅读相关文献如 ORPO（Odds Ratio Preference Optimization）、KTO（Kahneman-Tversky Optimization）等。这一条主线让模型从 BERT 时代仅能机械地执行特定任务转变成能与人类交互地真正的人工智能，极大地促进了人工智能的发展。另外一条主线则是微调效率的革命，面对百亿、千亿参数模型带来的显存与存储压力，这条主线是让大模型为不同组织特定需求的对齐落地的重要技术。早在 2019 年，Adapter 就被提出用于高效微调 BERT，首次系统性验证“冻结主干 + 插件微调”的可行性，为 PEFT 奠定思想基础，随着 GPT-3 展示千亿参数模型的潜力，研究者亟需更高效的微调方案。2021 年成为 PEFT 的“黄金元年”，三大代表性方法相继提出，分别是 Prefix Tuning、Prompt Tuning 和 LoRA。随后 2022 年提出的 UniPELF 首次在同一模型中并行集成多种 PEFT 方法，并通过门控机制自动选择最优组合。人们又发现微调调参是一个十分复杂麻烦的过程，对于每个不同任务不同数据集都要去调整合适的参数（比如 LoRA 的秩），那工作量无疑是巨大的，因此在 2024 年 NOAH 和 AUTOPEFT 探索如何自动搜索最优的微调配置。总之，在 2021 年之后，各种关于 PEFT 的论文百花齐放，如下图所示，PEFT 在各个领域（如 LLM、VFM、VLM 等）上逐年激增。
 
-![PEFT的发展趋势](images/01Introduction02.png)
+![PEFT 的发展趋势](./images/01Introduction02.png)
 
-## 主流微调方法
+## 2. 主流微调方法
 
-随着微调技术的发展，一系列不同的方法应运而生，以应对不同的性能需求、资源限制和任务目标。目前，主流的微调方法可以从不同维度进行分类，而理解这些分类方式，有助于我们根据具体需求选择最合适的技术路线。本章将从以下两个核心维度展开介绍：训练目标与流程和微调的参数规模。
+随着微调技术的发展，一系列不同的方法应运而生，以应对不同的性能需求、资源限制和任务目标。目前，主流的微调方法可以从不同维度进行分类，而理解这些分类方式，有助于我们根据具体需求选择最合适的技术路线。本章将从以下几个核心维度展开介绍：
 
-### 按训练流程划分
+- 按训练流程划分：从整个模型训练的整个流程中找到微调的定位，捋清不同的微调概念。
+- 按微调参数规模划分：引入全参微调和高效参数微调 PEFT。
+- 高效的 PEFT 设计：聚焦 PEFT，如何设计更高效的 PEFT。
+- PEFT 的多种应用：除了 LLMs，还将介绍 PEFT 在 ViTs、VLAs 和 Diffusion Models 等多种模型架构中的研究应用。
+
+最终我们整个微调章节还是主要聚焦于 PEFT 上来。
+
+### 2.1 按训练流程划分
 
 为了完整清晰地描述整个流程，本文将一些与微调关系不那么密切的概念（如”预训练“等）也统一放在此处讲，如下图所示，金色部分指的是使用的场景不多，蓝色部分指的是常规训练流程中都会涉及的。
 
@@ -48,7 +55,7 @@ BERT 及其后继者（如 RoBERTa、ALBERT）迅速在 GLUE、SQuAD 等多个�
    - 传统 SFT ：目标是在单一特定任务上达到最优性能（如判断情感是正面还是负面）。
    - 指令微调：目标是让模型泛化到未见过的指令和任务，具备通用的“听懂人话并执行”的能力。
 2. 数据组织方式不同（详见下表）
-   - 传统 SFT ：数据是同质的、任务固定的（例如1万条“文本 → 情感标签”），且通常只包含一种任务类型。
+   - 传统 SFT ：数据是同质的、任务固定的（例如 1 万条“文本 → 情感标签”），且通常只包含一种任务类型。
    - 指令微调：数据是异构的、多任务混合的（如同时包含摘要、翻译、问答、改写等），每条样本都用自然语言指令明确描述任务，使模型学会“任务切换”。
 3. 对模型能力的影响不同
    - 传统 SFT 后：模型变成一个专用工具（如情感分类器），无法处理其他任务。
@@ -62,7 +69,7 @@ BERT 及其后继者（如 RoBERTa、ALBERT）迅速在 GLUE、SQuAD 等多个�
 | **传统 SFT** | **GLUE (2018)**                      | 输入 → 输出                  | 输入: "The movie was great!" 输出: "positive"                | 用于自然语言理解 (分类/蕴含/相似度) |
 |              | **SQuAD (2016)**                     | 输入(段落+问题) → 输出(答案) | 输入: Passage + "What is the capital of France?" 输出: "Paris" | 经典阅读理解任务                    |
 |              | **WMT (机器翻译)**                   | 输入(英文) → 输出(中文)      | 输入: "I love this movie." 输出: "我喜欢这部电影。"          | 无任务说明，只学翻译                |
-| **指令微调** | **Super-NaturalInstructions (2022)** | 指令 + 输入 → 输出           | 指令: "判断情感类别：积极/消极" 输入: "这部电影真的很好看" 输出: "积极" | 多任务指令集 (~1600任务)            |
+| **指令微调** | **Super-NaturalInstructions (2022)** | 指令 + 输入 → 输出           | 指令: "判断情感类别：积极/消极" 输入: "这部电影真的很好看" 输出: "积极" | 多任务指令集 (~1600 任务)            |
 |              | **FLAN (2021/22)**                   | 指令 + 输入 → 输出           | 指令: "将英文翻译成中文。" 输入: "I love this movie." 输出: "我喜欢这部电影。" | Google 构建的大规模跨任务指令数据   |
 |              | **Alpaca (2023)**                    | 指令 + 输入 → 输出           | 指令: "写一首关于春天的短诗。" 输入: "" 输出: "春风拂面，花开满园…" | 基于 GPT 生成的 52K 指令数据        |
 |              | **OpenAssistant (2023)**             | 指令 + 输入 → 输出           | 指令: "解释量子计算机和传统计算机的区别。" 输出: "量子计算机使用量子比特…" | 专注对话式助手数据                  |
@@ -77,23 +84,27 @@ BERT 及其后继者（如 RoBERTa、ALBERT）迅速在 GLUE、SQuAD 等多个�
 
 类似的，为了避免模型在面对复杂推理任务（如数学应用题、逻辑推理、多步问答）时跳过中间步骤直接输出最终答案，如当前 DeepSeek 的”深度思考“功能，研究者们提出了思维链（Chain-of-Though, CoT），它的做法是在指令微调数据上加入更具体的推理步骤，如下图所示。尽管 CoT 对大模型效果提升明显，但是在中小模型上却并不适用甚至有害。
 
-![CoT输入示意图](images/01Introduction04.png)
+![CoT 输入示意图](./images/01Introduction04.png)
 
 指令微调让模型理解人类意图并进行回复，RFT 让模型拒绝人类不当的请求，CoT 让模型具备思考能力。但是还是存在一个问题，即模型的输出并不一定完全是对用户有用的，这输出可能是错误的、有害的或者仅仅对用户毫无帮助的，换而言之，就是模型的输出与用户存在”不对齐“的可能。因此还需要一种算法来使模型与用户对齐，让模型的输出符合用户的偏好，传统上有算法 **RLHF** ( Reinforcement Learning from Human Feedback )，现在有提出了更先进的 **DPO** ( Direct Preference Optimization )算法。打个比方来说，SFT 是 监督学习，每条样本有标准答案，让模型模仿它；RLHF / DPO 是 偏好学习，没有“标准答案”，只有“哪个更好”，目标是对齐人类偏好，而非复制某个固定输出。在此处我们仅对两种算法进行一个简单的介绍，如下图，首先是 RLHF ，它首先收集偏好数据，即通过指令微调好的模型，对同一个提示，让模型产生多个回答，然后人工去标注哪个回答更好。接着使用偏好数据训练奖励模型 RM，RM 的输入是”输入给大模型的提示+大模型的回答“，RM 的输出是一个质量分数。最后通过 RM 来为大模型新生成的回答打分，用 PPO (Proximal Policy Optimization) 等算法更新大模型，使其生成更高奖励的回答，同时增加 KL 散度约束，防止模型偏离原来的大模型太远，我们可以看出 RLHF 流程十分复杂，且 PPO 算法需要调参、RM 可能过拟合。而 DPO 无需 RM， 通过一个简单的分类式目标，直接优化模型策略去满足人类偏好，不需要显式的奖励函数或强化学习过程。
 
-![DPO与RLHF](images/01Introduction05.png)
+![DPO 与 RLHF](./images/01Introduction05.png)
 
-最后，还有一个是在模型部署之后，对模型参数不进行调整的**上下文学习**（In-Context Learning, ICL）。它的核心思想是大语言模型在推理时，不需要更新参数，用户只通过在输入里提供“示范+ 待解决问题”来完成任务。举个具体的例子便能说明其做法：
+还有一个是在模型部署之后，对模型参数不进行调整的**上下文学习**（In-Context Learning, ICL）。它的核心思想是大语言模型在推理时，不需要更新参数，用户只通过在输入里提供“示范+ 待解决问题”来完成任务。举个具体的例子便能说明其做法：
 
-> 示例1: pinyin: wo ai ni → 我爱你  
-> 示例2: pinyin: zao shang hao → 早上好  
-> 问题: pinyin: xue xi hao nan → 
+> 示例 1: pinyin: wo ai ni → 我爱你  
+> 示例 2: pinyin: zao shang hao → 早上好  
+> 问题: pinyin: xue xi hao nan →
 
 模型就会根据根据上下文的规律，输出”学习好难“。
 
-### 按微调参数规模划分
+最后，还想说明的一点是，从大模型预训练到部署前这一个过程来看，我们说的微调是指预训练后的阶段都称为微调，这和我们平时说的“拿官方的预训练模型过来微调一下”中的“微调”可能又不完全一样。以 DeepSeek-V3 为例，当 DeepSeek-V3 发布时，它会提供至少两种模型供我们下载，分别是 `DeepSeek-V3-Base` 和 `DeepSeek-V3-Chat（或叫 DeepSeek-V3）`，如下图所示，前者指的是预训练后、未经任何 SFT 或 RLHF 的基础模型，后者指的是经过了 SFT 和 RLHF 完整后训练的聊天模型。对于大型企业而言，他们可能拥有充足的算力并希望构建一个自由度更高的模型，那么他们则会选择从 `DeepSeek-V3-Base` 开始微调，如下图，流程中蓝色部分表示官方已经完成的流程，黄色部分则表示企业或用户需要自行完成的部分；对于个人用户而言，因为算力有限，往往会选择从`DeepSeek-V3-Chat` 开始微调，由于`DeepSeek-V3-Chat` 已经经过一轮指令微调和 RLHF 等，因此，个人用户为了提高模型在特定领域的能力，只需使用特定领域的数据集再次对模型进行指令微调即可，而平时所说的“官方的预训练模型“在此处就指的是官方”预训练+ RLHF/DPO“后的模型。
 
-根据在微调过程中更新的参数数量，微调方法主要分为两大类：**全参数微调（Full-Parameter Fine-Tuning, FFT）**和**参数高效微调（Parameter-Efficient Fine-Tuning, PEFT）**。这两种方法在资源消耗、存储成本和最终效果之间有着不同的权衡，它们发生在训练流程中除了预训练以外涉及模型参数更新的地方（如指令微调、RLHF、DPO），因为预训练是从零开始训练所有参数，所以不能称之为“微调”。
+![微调流程](./images/01Introduction07.png)
+
+### 2.2 按微调参数规模划分
+
+根据在微调过程中更新的参数数量，微调方法主要分为两大类：**全参数微调（Full-Parameter Fine-Tuning, FFT）**和**参数高效微调（Parameter-Efficient Fine-Tuning, PEFT）**。这两种方法在资源消耗、存储成本和最终效果之间有着不同的权衡。在模型最初训练时，比如在 DeepSeek V3 完整的训练流程中，为了达到最佳性能，指令微调和 RLHF 一般都采取 FFT；而对于个人用户而言，由于是基于一个比较成熟的模型上进行再次训练的，再加上由于硬件资源限制，因此通过一般采取 PEFT，使得模型尽可能保持原本泛化能力的同时对特定领域的知识更加精通。
 
 **全参数微调**是最早期也是最直接的思路。它在微调阶段更新模型的所有参数，即对预训练得到的基础模型进行端到端的再训练。这种方法能够最大程度地适配下游任务或对齐目标，通常在数据充足、计算资源丰富的情况下取得最优性能。例如，OpenAI 的 InstructGPT 和 Meta 的 Llama-2-Chat 在官方训练流程中均采用了全参数微调（包括 SFT 和 RLHF 阶段），以确保模型在指令遵循、安全性和有用性上达到最高标准。
 
@@ -103,24 +114,29 @@ BERT 及其后继者（如 RoBERTa、ALBERT）迅速在 GLUE、SQuAD 等多个�
 - 存储成本高：每微调一个任务或版本，就需要保存一套完整的模型副本（例如 13GB/7B 模型）；
 - 训练不稳定：在小数据集上容易过拟合，或因学习率不当导致灾难性遗忘。
 
-正因如此，随着大模型参数量持续增长，**参数高效微调**技术应运而生。PEFT 的核心思想是冻结预训练模型的绝大部分参数，仅引入少量可训练参数（通常 <1%），通过适配器（Adapter）、低秩矩阵（LoRA）、前缀向量（Prefix-tuning）等方式注入任务特定知识，下图右半部分展示了 PEFT 技术的发展以及大模型的发展，同时还展示了4类主流 PEFT 方法的思想。其中，LoRA 因其简单、高效、可合并、对推理无延迟影响等优点，成为当前最主流的 PEFT 方法，广泛应用于指令微调、DPO 对齐等场景。尽管如此，大模型的架构多样性同样决定了 PEFT 的不同策略，比如对于视觉模型和语言模型，可能采取不一样的 PEFT 策略，甚至对语言模型的不同架构也能采取不同的策略。
+正因如此，随着大模型参数量持续增长，**参数高效微调**技术应运而生。PEFT 的核心思想是冻结预训练模型的绝大部分参数，仅引入少量可训练参数（通常 <1%），通过适配器（Adapter）、低秩矩阵（LoRA）、前缀向量（Prefix-tuning）等方式注入任务特定知识，下图右半部分展示了 PEFT 技术的发展以及大模型的发展，同时还展示了 4 类主流 PEFT 方法的思想。其中，LoRA 因其简单、高效、可合并、对推理无延迟影响等优点，成为当前最主流的 PEFT 方法。尽管如此，大模型的架构多样性同样决定了 PEFT 的不同策略，比如对于视觉模型和语言模型，可能采取不一样的 PEFT 策略，甚至对语言模型的不同架构也能采取不同的策略。
 
-![DPO与RLHF](images/01Introduction06.png)
+![DPO 与 RLHF](./images/01Introduction06.png)
+
+此外，后续研究者提出的 UniPELT 采取混合微调策略，把 Prefix-tuning、Adapter 和 LoRA 多种 PEFT 方法集成到模型中进行微调，并通过引入门控机制来选择激活的 PEFT 模块。 LLM-Adapters 等探索应该在模型的哪些位置插入 PEFT 会达到更好的效果，AUTOPEFT 和 NOAH 则研究如何让模型自行设置最佳的参数进行微调。
 
 总体而言，FFT 追求性能上限，适用于资源充足的工业级训练；而 PEFT 则在几乎不损失效果的前提下大幅降低门槛，推动了大模型微调在学术界和中小团队中的普及。两者并非互斥，而是根据实际需求的不同选择。
 
-## 总结与思考
+## 3. 高效底参微调 PEFT
+
+### PEFT 设计
+
+### PEFT 应用
+
+## 4. 总结与思考
 
 纵观大模型的发展路径，微调几乎贯穿了从预训练到落地应用的每一个关键环节。从最初的特征迁移到任务微调，再到当下的指令微调与偏好对齐，微调不仅仅是性能优化的手段，更是模型理解人类意图、遵循价值观的重要桥梁。与此同时，参数高效微调的兴起也让中小团队有机会参与到大模型的定制与创新中。总体来看，微调技术已经成为大模型走向实用化的一个必不可少的环节。
 
-## 参考与引用
+## 5. 参考与引用
 
-[1] Wu X K, Chen M, Li W, Wang R, Lu L, Liu J, Hwang K, Hao Y, Pan Y, Meng Q, et al. LLM Fine-Tuning: Concepts, Opportunities, and Challenges[J]. Big Data and Cognitive Computing, 2025, 9(4): 87. DOI:10.3390/bdcc9040087.
-
-[2] Devlin J, Chang M W, Lee K, et al. Bert: Pre-training of deep bidirectional transformers for language understanding[C]//Proceedings of the 2019 conference of the North American chapter of the association for computational linguistics: human language technologies, volume 1 (long and short papers). 2019: 4171-4186.
-
-[3] Wei J, Wang X, Schuurmans D, et al. Chain-of-thought prompting elicits reasoning in large language models[J]. Advances in neural information processing systems, 2022, 35: 24824-24837.
-
-[4] Rafailov R, Sharma A, Mitchell E, et al. Direct preference optimization: Your language model is secretly a reward model[J]. Advances in neural information processing systems, 2023, 36: 53728-53741.
-
-[5] Zhang D, Feng T, Xue L, et al. Parameter-efficient fine-tuning for foundation models[J]. arXiv preprint arXiv:2501.13787, 2025.
+- [1] Wu X K, Chen M, Li W, Wang R, Lu L, Liu J, Hwang K, Hao Y, Pan Y, Meng Q, et al. LLM Fine-Tuning: Concepts, Opportunities, and Challenges[J]. Big Data and Cognitive Computing, 2025, 9(4): 87. DOI:10.3390/bdcc9040087.
+- [2] Devlin J, Chang M W, Lee K, et al. Bert: Pre-training of deep bidirectional transformers for language understanding[C]//Proceedings of the 2019 conference of the North American chapter of the association for computational linguistics: human language technologies, volume 1 (long and short papers). 2019: 4171-4186.
+- [3] Wei J, Wang X, Schuurmans D, et al. Chain-of-thought prompting elicits reasoning in large language models[J]. Advances in neural information processing systems, 2022, 35: 24824-24837.
+- [4] Rafailov R, Sharma A, Mitchell E, et al. Direct preference optimization: Your language model is secretly a reward model[J]. Advances in neural information processing systems, 2023, 36: 53728-53741.
+- [5] Zhang D, Feng T, Xue L, et al. Parameter-efficient fine-tuning for foundation models[J]. arXiv preprint arXiv:2501.13787, 2025.
+- [6] Han Z, Gao C, Liu J, et al. Parameter-efficient fine-tuning for large models: A comprehensive survey[J]. arXiv preprint arXiv:2403.14608, 2024.
