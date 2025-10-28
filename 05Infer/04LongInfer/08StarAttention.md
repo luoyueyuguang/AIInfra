@@ -6,12 +6,14 @@ Author by: 于佼良
 
 
 ## 二、什么StarAttention？
-SA分两部分，第一部分称为上下文编码（Context encoding）。第二部分为查询编码于token生成。
+SA分两部分，第一部分称为上下文编码（Context encoding）。第二部分为查询编码与token生成。
 
 ### 1. 上下文编码
-对于输入序列，它通常由上下文c和紧跟其后的q组成，在上下文编码中，把这个c划分为n个连续的块，$c=[c_1,c_2,...c_n]$, 在每个块中，包含b个token。这里引入了一种锚定块机制，在这个机制中，除了第一个块，每个块都以第一个块作为前缀。图示如下：
+对于输入序列，它通常由上下文c和紧跟其后的q组成，在上下文编码中，把这个c划分为n个连续的块，$$c=[c_1,c_2,...c_n]$$
 
-![alt text](../04LongInfer/images/08StarAttention_1.png)
+在每个块中，包含b个token。这里引入了一种锚定块机制，在这个机制中，除了第一个块，每个块都以第一个块作为前缀。图示如下：
+
+![alt text](../04LongInfer/images/08StarAttention_01.png)
 
 每个拼接后的块(下文称为增强块)可以表示为：
 
@@ -30,9 +32,28 @@ $$ c'=[c_1,(c_1,c_2),(c_1,c_3)....(c_1,c_n)] $$
 
 初看之下似乎，start attention 和 streaming llm提到的结论有点相悖，前者认为是信息重要，后者认为绝对位置比较重要。关于这一点，我认为它们本质上是一致的，即对于完整的序列来说，开头的block，是注意力得分较高的部分，也就是sink的部分，start attention得出的位置不重要的结论只是通过改动position id，而first block的重要性是他们的绝对位置决定的，这个position id带来的影响太小。不过这个自圆其说的想法不一定正确，欢迎大家提出指导意见~
 
-### 2、
+### 2、查询编码与token生成
+这部分就比较常规了, 由于每个机器存放了部分k和v，怎么去算最终的attention呢？ 
+
+一个q，一堆k和v，没错，就是flash attention！
+
+虽然flash attention并不针对分布式的场景，但是star attention中提到的上下文编码构造出的分布式k，v非常契合flash attention的计算方法。关于flash attention的具体计算方式，这里就不展开啦~
 
 
+### 3、性能与精度的trade off
+总的来说，star attention是通过锚定块这样的trick，来减少了类似ring attention这样的通信，同时又控制了每个机器的计算和内存开销。有一个自然而然的问题，那就是如果上下文块或者锚定块越大，对全局序列的“感受野”就会越大，精度自然会更好，理论上会无限接近全局注意力。但是如果锚定块太大，或者上下文块太大，它就无法带来预期中的性能优化。
 
+下面贴一些简单的图示：
 
+![trade off](../04LongInfer/images/08StarAttention_03.png)
+
+## 三、补充说明
+最后简单总结一下，StarAttention的思路，像是对于RingAttention通过求近似解得到的优化。由于attention sink的存在，通过锚定块的设计，可以近似计算出类似全局注意力分布的多个局部注意力，从而大大降低了通信的开销。
+
+欢迎批评指正~
+
+#### 参考文献
+* Star Attention: Efficient LLM Inference over Long Sequences
+* EFFICIENT STREAMING LANGUAGE MODELS
+ WITH ATTENTION SINKS
 
