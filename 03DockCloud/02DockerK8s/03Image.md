@@ -1,6 +1,6 @@
 <!--Copyright © ZOMI 适用于[License](https://github.com/Infrasys-AI/AIInfra)版权许可-->
 
-# 容器镜像文件系统(DONE)
+# 03. 容器镜像文件系统(DONE)
 
 > Author by: 张柯帆
 
@@ -156,6 +156,6 @@ AUFS 需维护复杂的层间映射关系，内核内存消耗较大；而 Overl
 
 ## 参考与引用
 
-https://docker-docs.uclv.cu/storage/storagedriver/aufs-driver/（Docker AUFS 驱动官方文档）
-https://blog.csdn.net/luckyapple1028/article/details/77916194（OverlayFS 技术细节解析）
-https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt（Linux 内核 OverlayFS 官方文档）
+- https://docker-docs.uclv.cu/storage/storagedriver/aufs-driver/（Docker AUFS 驱动官方文档）
+- https://blog.csdn.net/luckyapple1028/article/details/77916194（OverlayFS 技术细节解析）
+- https://www.kernel.org/doc/Documentation/filesystems/overlayfs.txt（Linux 内核 OverlayFS 官方文档）

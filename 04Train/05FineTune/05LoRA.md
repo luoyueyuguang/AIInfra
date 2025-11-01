@@ -4,19 +4,6 @@
 
 > Author by: 李亚鹏
 
-!!!!!!
-1）一定要注意格式，看这个 PR 的改动；2）合并 LoRA 基本介绍和原理，内容太少了；3）算法解读不够深刻
-
-先写个中心句，和之前的方法有什么联系，怎么引出 LoRA，要有一个逻辑的关系
-
-流程图、算法要加上
-
-之前、之后的相关工作串起来，将优、缺点写出
-
-有知识性的技术之外的更深层次的理解
-
-太正式了，参考知乎是怎么讲的，给个例子什么的，要讲懂，搞个图什么的，讲怎么把 LoRA 嵌进去
-
 ## 引言
 
 在大语言模型（Large Language Model，LLM）的时代，如何高效、低成本地让一个通用的预训练模型适应特定的下游任务，成为了一个核心挑战。全参数微调（Full Fine-tuning）效果虽然出色，但其巨大的计算和存储开销令人望而却步。为此，研究者们提出了一系列参数高效微调（Parameter-Efficient Fine-Tuning，PEFT）方法，其中较为流行的是 Prompt Tuning、Adapter-Tuning 方法，然而，这两类方法却有着其固有的缺陷：
@@ -71,7 +58,7 @@ $$
 h=W_0x+\alpha\Delta Wx=W_0x+\alpha BAx
 $$
 
-
+在LoRA中，我们想要将乘积$BA$初始化为0，以便从预训练的模型开始微调，这意味着权重$A$和$B$中至少有一个初始化为0。而如果两者都初始化为0，在这种情况下模型学习是无法进行的，因为这将是一个鞍点。因此，LoRA对 $A$ 中的每个量使用随机高斯分布进行初始化，而将 $B$ 初始化为 0。
 
 ![图 4](./images/05LoRA04.gif)
 
@@ -287,9 +274,154 @@ $$
 
 通过这种设计，DoRA 成功地将量级更新（由 $m$ 负责）和方向更新（由 $BA$ 负责）彻底分开，将复杂的权重更新任务分解为两个更简单的子任务（调整量级和调整方向），使得训练过程更加稳定和高效，并且释放了模型的微调潜力，在众多任务上都取得了超越标准 LoRA 的性能，显著缩小了与全参数微调的差距。
 
-### LoRA++ 算法原理
+### LoRA+ 算法原理
+
+标准的LoRA在参数高效微调领域取得了巨大成功，但其初始实现中一个看似微不足道的细节—为分解后的矩阵$A$和$B$设置相同的学习率—掩盖了其训练动态中的一个关键低效点。**LoRA+** 的核心贡献，正是通过严谨的理论分析揭示并修正了这一问题，从而在不增加任何计算成本的前提下，解锁了更快的收敛速度和更优的模型性能。
+
+LoRA将权重矩阵的更新$\Delta W$分解为$BA$，其中B为$n×r$矩阵，A为$r×n$矩阵。在反向传播过程中，损失函数$L$对这两个矩阵的梯度可以表示为：
+$$
+\frac{\partial L}{\partial A}=B^T\cdot\left(\frac{\partial L}{\partial(BA)}\right)
+$$
+
+$$
+\frac{\partial L}{\partial B}=\left(\frac{\partial L}{\partial(BA)}\right)\cdot A^T
+$$
+
+这里的关键在于矩阵的维度和乘法顺序。让我们更直观地考察梯度的范数或尺度。假设输入$x$和梯度$\frac{\partial L}{\partial BA}$中的元素大致独立且方差为1。
+
+- **对于矩阵B的梯度$\frac{\partial L}{\partial B}$**：
+  $\frac{\partial L}{\partial B}$的每一列都是$\frac{\partial L}{\partial BA}$与$A$的某一列的内积。A的列向量维度为$r$。根据随机矩阵理论的直觉，这个内积的结果（即$\frac{\partial L}{\partial B}$的单个元素）的尺度大致是$O(\sqrt{r})$。
+- **对于矩阵A的梯度$\frac{\partial L}{\partial A}$**：
+  $\frac{\partial L}{\partial A}$的每一行都是$B$的某一行与$\frac{\partial L}{\partial BA}$的内积。B的行向量维度为$n$。同理，这个内积的结果（即$\frac{\partial L}{\partial A}$的单个元素）的尺度大致是$O(\sqrt{n})$。
+
+由于在大模型中，模型宽度$n$通常远大于LoRA的秩$r$（例如 $n$=4096, $r$=16），这就导致了一个根本性的**梯度尺度不对称性**：
+$$
+\left\|\frac{\partial L}{\partial A}\right\|\approx O(\sqrt{n})
+$$
+
+$$
+\left\|\frac{\partial L}{\partial B}\right\|\approx O(\sqrt{r})
+$$
+
+这意味着，**传递到矩阵A的梯度天然就比传递到矩阵B的梯度在尺度上大得多**。
+
+当标准LoRA对两者使用相同的学习率$\eta$时，更新步长$\Delta A=\eta\cdot\frac{\partial L}{\partial A}$和$\Delta B=\eta\cdot\frac{\partial L}{\partial B}$的尺度也会存在巨大差异。为了保证训练的整体稳定性（主要是防止$\Delta A$过大导致的发散），学习率$\eta$必须设置得相对较小，以适应$\frac{\partial L}{\partial A}$这个“大梯度”。
+
+然而，这个对于$A$来说“安全”的学习率$\eta$，对于$B$来说就太小了。$\Delta B$的更新步长会变得微不足道，导致矩阵$B$的学习过程极其缓慢，几乎陷入停滞。
+
+LoRA+的解决方案直击问题核心：既然梯度尺度存在不对称性，那么就应该用学习率来抵消这种不对称性，从而让两个矩阵的有效更新步长保持在相似的的尺度上。
+
+理想的状况是，我们希望权重矩阵的实际变化量$\| \Delta A \|$ 和 $\| \Delta B \|$能够对学习过程做出同等重要的贡献。为了达到这个目的，学习率$\eta_A$和$\eta_B$需要满足以下关系：
+$$
+\eta_A \cdot \left\| \frac{\partial L}{\partial A} \right\| \approx \eta_B \cdot \left\| \frac{\partial L}{\partial B} \right\|
+$$
+
+$$
+\eta_A \cdot O(\sqrt{n}) \approx \eta_B \cdot O(\sqrt{r})
+$$
+
+由此可得：
+$$
+\frac{\eta_B}{\eta_A} \approx O\left( \frac{\sqrt{n}}{\sqrt{r}} \right)
+$$
+由于$n\gg r$，这意味着$\eta_B$需要远大于$\eta_A$.
+
+LoRA+将这一理论洞察转化为一个简单且实用的策略。它没有要求用户去精确计算$n$和$r$的比值，而是引入了一个固定的、远大于1的比率超参数$\lambda$，使得$\eta_B=\lambda×\eta_A$，其中$\eta_A$为用户调节的基础学习率。
+
+通过设置一个较大的$\lambda$（例如$\lambda$=16），$\eta_B$被显著放大，从而有效地补偿了$\frac{\partial L}{\partial B}$较小的梯度尺度。这使得$\Delta B$的更新步长恢复到了一个合理的量级。
+
+![图 17](./images/05LoRA17.png)
+
+这种对学习率的精准校正，带来了两个直接且显著的好处：
+
+1. **更快的收敛速度**：当$A$和$B$都以“正确”的步长协同更新时，模型能更直接、更高效地探索最优的低秩子空间，避免了因$B$学习缓慢而导致的优化路径迂回。这直接体现为训练收敛速度的大幅提升。如下图，LoRA+（蓝色线条）仅需原始LoRA(黄色线条)大约一半的训练步长，即可达到甚至超过后者的收敛程度。
+2. **更优的模型性能**：标准LoRA中，由于$B$的学习不充分，模型可能未能找到最优的特征提取方式。LoRA+通过“激活”$B$的学习过程，使得模型能够学习到对下游任务更具表达能力的低秩表示。一个更优的低秩子空间自然会带来最终模型性能的提升，尤其是在那些需要更强特征自适应能力的复杂任务上。
+
+![图 18](./images/05LoRA18.png)
+
+总的来说，LoRA+基于对LoRA反向传播过程中梯度尺度不对称性的深刻理论洞察，为两个角色不同的矩阵分配合理缩放的学习率，从根本上解决了标准LoRA中的矩阵$B$学习不足的问题，从而以零额外计算成本的方式，实现了训练效率和模型精度的双重突破。
 
 ### MoE_LoRA 算法原理
+
+LoRA的模块化特性激发了一个极具吸引力的设想：我们是否能像玩乐高积木一样，将针对不同任务或风格微调好的LoRA模块自由组合，从而创造出全新的、复合的能力？例如，将一个精通“画狗”的LoRA、一个擅长“赛博朋克风格”的LoRA，以及一个专门学习“戴墨镜”概念的LoRA组合起来，可以生成一幅高质量的“戴着墨镜的赛博朋克风格的狗”的图像。
+
+然而，当研究者们尝试用最直接的方法——**线性算术组合**（即简单地将各专家LoRA权重$\Delta W$求和）——来实现这一目标时，很快就遇到了难以逾越的障碍。
+$$
+\hat{\boldsymbol{W}}=\boldsymbol{W}+\sum_{i=1}^N\Delta\boldsymbol{W}_i,
+$$
+这种简单组合的背后潜藏着两大根本性问题：
+
+1. **破坏性干扰**：当N增加到一定数量后，这种方式可能会影响原始权重$W$，从而降低模型的生成能力。
+2. **特征稀释**：为了缓解上述的问题，一个常见的做法是对组合权重进行归一化（例如，保证权重之和为1）。但这又引入了新的问题：随着组合的LoRA数量增多，分配给每个LoRA的权重$w_i$就必须相应减小。这就好比一个委员会里专家太多，每个人的发言时间都被压缩，导致其独特的见解无法充分表达。“赛博朋克”的风格感可能会因为权重过低而变得微乎其微，“墨镜”的特征也可能变得模糊不清。
+
+$$
+\hat{\boldsymbol{W}}=\boldsymbol{W}+\sum_{i=1}^Nw_i\cdot\Delta\boldsymbol{W}_i
+$$
+
+为了绕过这些问题，**基于参考的微调**等方法被提出，但它们通常需要重新进行大规模训练，这不仅成本高昂，更彻底牺牲了LoRA“即插即用”的核心优势。
+
+因此，一个核心的挑战摆在面前：**如何动态有效地组合多个经过训练的LoRA，同时保留它们所有的个体特征？**
+
+对于这个问题，一个经典解决方案是**Mixture of LoRA Experts (MOLE)** 。MOLE彻底颠覆了为每个LoRA分配一个全局、静态混合权重的“一刀切”思路。它的核心思路来源于论文中的一个关键观察：**一个完整的LoRA并非一个不可分割的整体，其内部不同层级的权重所学习和控制的特征是截然不同的。**
+
+![图 19](./images/05LoRA19.png)
+
+基于此，MOLE提出了一种全新的范式：将LoRA组合问题，转化为在模型的**每一层**都召开一次“**多方专家委员会会议**”。在这个会议上，不再使用一个固定的全局权重，而是引入一个**动态的、可学习的门控函数（Gating Function，G）**，它扮演着“智能会议主持人”的角色。这位主持人会根据当前需要解决的具体问题（即模型的输入），在**当前层级**动态地决定应该赋予来自不同LoRA的“层级专家”多大的话语权。另外，MOLE也允许手动去除某个LoRA块（如上图的LoRA $\gamma$），**算法不变**的将该LoRA块的权重分配给其它LoRA专家。
+
+MOLE的架构在Transformer的每个需要适配的层级都进行了对应的设计，下面我们来了解其详细的技术原理。
+
+![图 20](./images/05LoRA20.png)
+
+给定训练好的$N$个LoRA专家模块$\Omega=\{\Delta\theta_i\}_{i=0}^{N-1}$，对于输入$x\in\mathbb{R}^{L\times d}$（$L$是序列长度，$d$是维度），在一个transformer块内，先后经过其Attention层和FFN层的LoRA模块，计算出对应第$i$个专家的LoRA增量$\boldsymbol{E}_{\Delta\theta_i}\left(\boldsymbol{x}\right)$。（$LN$为layer normalization操作）
+$$
+\boldsymbol{x}_{\Delta\theta_i}^{^{\prime}}=\boldsymbol{x}+f_{\mathrm{Attn}}\left(\mathrm{LN}(\boldsymbol{x})|\Delta\theta_i\right)
+$$
+
+$$
+\boldsymbol{E}_{\Delta\theta_i}\left(\boldsymbol{x}\right)=\boldsymbol{x}_{\Delta\theta_i}^{^{\prime}}+f_{\mathrm{FFN}}\left(\mathrm{LN}\left(\boldsymbol{x}_{\Delta\theta_i}^{^{\prime}}\right)|\Delta\theta_i\right)
+$$
+
+接着对所有LoRA增量进行向量拼接和归一化操作，得到$\boldsymbol{E}_\Omega\left(\boldsymbol{x}\right)\in\mathbb{R}^\xi$且$\xi=N\times L\times d$。
+$$
+E_{\Omega}\left(\boldsymbol{x}\right)=\text{Normalization}\left(\boldsymbol{E}_{\Delta\theta_{0}}\left(\boldsymbol{x}\right)\oplus\ldots\oplus\boldsymbol{E}_{\Delta\theta_{N-1}}\left(\boldsymbol{x}\right)\right)
+$$
+
+再对$\boldsymbol{E}_\Omega\left(\boldsymbol{x}\right)$进行向量平展操作，并用一个**可学习**的**$\boldsymbol{e}\in\mathbb{R}^{\xi\times N}$**对其点积，将$\boldsymbol{E}_\Omega\left(\boldsymbol{x}\right)$降至$N$维。
+$$
+\varepsilon=\mathrm{Flatten}{\left(\boldsymbol{E}_\Omega\left(\boldsymbol{x}\right)\right)}^\top\cdot\boldsymbol{e},\quad\varepsilon\in\mathbb{R}^N
+$$
+那么每个LoRA模块的门控值如下，其中温度标量$\mathrm{T}$是**可学习**的。
+$$
+\mathcal{G}(\varepsilon_i)=\frac{\exp\left(\varepsilon_i/\tau\right)}{\sum_{j=1}^N\exp\left(\varepsilon_j/\tau\right)}
+$$
+将每个LoRA专家的输出与对应的门控值相乘，得到门控函数$G(·)$的最终输出:
+$$
+\tilde{\boldsymbol{E}}_{\Omega}(\boldsymbol{x})=\sum_{i=0}^{N}\mathcal{G}_{i}\left(\varepsilon_{i}\right)\cdot\boldsymbol{E}_{\Delta\theta_{i}}\left(\boldsymbol{x}\right)
+$$
+最后，将门控制函数的输出（LoRA增量）与预训练网络的输出（$\boldsymbol{F}_\theta$）相加，计算出该transformer块的最终输出:
+$$
+\boldsymbol{O}\left(\boldsymbol{x}\right)=\boldsymbol{F}_\theta\left(\boldsymbol{x}\right)+\tilde{\boldsymbol{E}}_\Omega\left(\boldsymbol{x}\right)
+$$
+在训练门控网络时，研究者发现了一个新问题：随着训练步数的增加，门控函数的分布概率的平均熵逐渐减小（下图蓝色线条），模型会很快倾向于只给少数几个表现优异的LoRA分配高权重（如下图的LoRA $\beta$，门控概率为68%），而忽略其他专家，这将丧失组合的多样性。
+
+![图 21](./images/05LoRA21.png)
+
+为了鼓励门控网络分配权重时的平衡性，MOLE引入了一个**门控平衡损失 (Gating Balancing Loss)**，作为整体Loss的补充项。该损失项旨在最小化不同LoRA专家在整个训练批次中被分配到的**平均权重**之间的差异。它像一个惩罚机制，如果某个专家被持续冷落或过度依赖，损失值就会增大，从而迫使模型学会更均衡地利用所有专家的能力。
+$$
+\mathcal{L}_{\mathrm{balance}}=-\log\left(\prod_{i=0}^N\mathbf{q}^{(i)}\right)
+$$
+
+$$
+\begin{aligned}\mathbf{q}^{(i)}=\frac{1}{M}\sum_{k=1}^{M}\frac{\exp\left(\varepsilon_i^k/\tau\right)}{\sum_{j=1}^{N}\exp\left(\varepsilon_j^k/\tau\right)}\end{aligned}
+$$
+
+其中，$M$表示含有门控函数的transformer块的数量，N表示LoRA专家的数量。
+
+在实验中，研究者证明了MoLE的有效性。MoLE在Big-Bench Hard（一个NLP任务）测试集上的表现明显优于NLA（normalized linear arithmetic composition，即上文的归一化线性组合算法）和其它MoELoRA方法（LoRAHub、PEMS）。另外，在其它任务，例如多模态文生图中，MOLE也成功做到了在保留各个LoRA鲜明特征的同时，实现灵活、高质量的动态组合的效果。
+
+然而，MOLE也并非完美。论文同样指出，当组合的LoRA专家数量变得极大时（例如超过100个），所有MoELoRA组合方法的性能都开始出现下降。这表明，如何高效管理和组合超大规模的专家库，仍然是一个开放的挑战。
+
+![图 22](./images/05LoRA22.png)
 
 ## LoRA 微调应用场景
 
@@ -323,15 +455,7 @@ $$
 - QLoRA: Efficient finetuning of quantized llms，https://arxiv.org/abs/2305.14314
 - AdaLoRA：Adaptive Budget Allocation For Parameter-Efficient Fine-Tuning， https://arxiv.org/abs/2303.10512
 - DoRA：Weight-Decomposed Low-Rank Adaptation， https://arxiv.org/abs/2402.09353
-- **Mixture of LoRA Experts（ICLR,2024）**
-- **LoraHub: Efficient Cross-Task Generalization via Dynamic LoRA Composition（COLM，2024）**
-- **“Moelora: An moe-based parameter efficient fine-tuning method for multi-task medical applications**
-- **Pushing Mixture of Experts to the Limit: Extremely Parameter Efficient MoE for Instruction Tuning（ICLR，2024）**
+- LoRA+：Efficient low rank adaptation of large models，https://arxiv.org/abs/2402.12354
+- Mixture of LoRA Experts，https://arxiv.org/abs/2404.13628
 - VoRA：Vision as LoRA， https://arxiv.org/abs/2503.20680
-
-
-
-LLaVA-MoLE: Sparse Mixture of LoRA Experts for Mitigating Data Conflicts in Instruction Finetuning MLLMs（非顶）
-
-MoELoRA: Contrastive Learning Guided Mixture of Experts on Parameter-Efficient Fine-Tuning for Large Language Models(非顶)
 

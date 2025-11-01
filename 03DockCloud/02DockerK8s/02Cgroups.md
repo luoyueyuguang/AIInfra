@@ -1,6 +1,6 @@
 <!--Copyright © ZOMI 适用于[License](https://github.com/Infrasys-AI/AIInfra)版权许可-->
 
-# 02. Cgroups：容器资源控制关键(DONE)
+# 02. Cgroups 容器资源控制(DONE)
 
 > Author by: 张柯帆，ZOMI
 
