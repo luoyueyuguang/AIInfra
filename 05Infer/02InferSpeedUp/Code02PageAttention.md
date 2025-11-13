@@ -44,6 +44,7 @@ PagedAttention 的另一个重要优势是支持**高效的内存共享**。在�
 
 首先定义页面（Page）和块表（PageTable）的数据结构，这是 PagedAttention 的基础：
 
+
 ```python
 import torch
 import math
@@ -66,6 +67,7 @@ class Page:
 
 `Page` 类表示一个物理页面，类似于操作系统中的内存页。每个页面有固定容量（`page_size`），存储多个 token 的键和值。`ref_count` 字段记录页面被引用的次数，用于实现类似 LRU 的页面置换算法。
 
+
 ```python
 class PageTable:
     """管理逻辑页面到物理页面的映射关系"""
@@ -86,6 +88,7 @@ class PageTable:
 ## 4. 块管理器与序列管理
 
 接下来实现块管理器（BlockManager）和序列管理器（SequenceManager），负责页面的分配、回收和序列的页面映射：
+
 
 ```python
 class BlockManager:
@@ -119,6 +122,7 @@ class BlockManager:
 ```
 
 `BlockManager` 管理物理页面池，处理页面分配和回收。它维护了一个空闲页面列表和已分配页面集合，采用**引用计数**机制确保页面安全复用。当页面引用计数降为零时，页面被回收至空闲池。
+
 
 ```python
 class SequenceManager:
@@ -158,6 +162,7 @@ class SequenceManager:
 ## 5. PagedAttention 计算
 
 现在实现分页注意力计算的核心逻辑，从分散的页面收集键值并执行注意力运算：
+
 
 ```python
 class PagedAttention:
@@ -213,12 +218,12 @@ class PagedAttention:
         return output  # [batch_size, num_heads, head_dim]
 ```
 
-
 `PagedAttention` 类负责实际的分页注意力计算。它首先根据页表收集所有相关的键值页面，考虑到最后一页可能不满的情况。然后将这些页面拼接成完整的键值矩阵，执行标准的注意力计算。这种实现虽然增加了页面收集的开销，但大大降低了内存碎片化，提高了内存利用率。
 
 ## 6. 实验验证
 
 以下代码演示了 PagedAttention 的完整工作流程，模拟了实际推理场景：
+
 
 ```python
 # 实验设置和参数初始化
@@ -255,6 +260,17 @@ for token_pos in range(20):
         print(f"已处理 Token 数量: {token_pos+1}, 注意力输出形状: {output.shape}")
         print(f"当前使用的物理页面数: {len([pid for pid in page_table.logical_to_physical.values() if pid != -1])}")
 ```
+
+    开始模拟生成 20 个 token 的过程...
+    已处理 Token 数量: 5, 注意力输出形状: torch.Size([1, 4, 16])
+    当前使用的物理页面数: 1
+    已处理 Token 数量: 10, 注意力输出形状: torch.Size([1, 4, 16])
+    当前使用的物理页面数: 2
+    已处理 Token 数量: 15, 注意力输出形状: torch.Size([1, 4, 16])
+    当前使用的物理页面数: 2
+    已处理 Token 数量: 20, 注意力输出形状: torch.Size([1, 4, 16])
+    当前使用的物理页面数: 3
+
 
 这段实验代码展示了 PagedAttention 的完整工作流程。它模拟了生成 20 个 token 的过程，每生成 5 个 token 计算一次注意力。通过输出信息可以看到内存使用情况，验证了 PagedAttention 的动态内存分配特性。
 

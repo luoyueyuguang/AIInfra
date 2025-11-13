@@ -10,7 +10,8 @@
 
 首先设置实验环境，确保结果的可重现性。我们使用 Hugging Face 的 Transformers 库来加载一个适中的模型，以便在消费级 GPU 上运行实验。
 
-```python
+
+```
 import torch
 import torch.nn as nn
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -28,7 +29,8 @@ torch.manual_seed(42)
 
 接下来加载一个适中的模型进行实验。我们选择 GPT-2 模型，它在保持 Transformer 架构完整性的同时，计算需求相对较小。
 
-```python
+
+```
 # 加载模型和分词器
 model_name = "gpt2"  # 使用较小的 GPT-2 模型
 tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -57,7 +59,8 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)
 
 在第一个实验中，我们完全关闭 KVCache 功能，每次生成新 token 时都重新计算所有先前 token 的 KV 值。这种方法计算效率最低，但可以帮助我们理解 KVCache 的价值。
 
-```python
+
+```
 def generate_without_kv_cache(model, input_ids, max_length=50):
     """
     不使用 KVCache 的生成函数
@@ -108,7 +111,8 @@ print(f"关闭 KVCache - 推理延迟: {latency:.4f} 秒")
 
 现在，我们启用 KVCache 功能。这将显著减少计算量，因为只需要计算最新 token 的注意力权重。
 
-```python
+
+```
 def generate_with_kv_cache(model, input_ids, max_length=50):
     """
     使用 KVCache 的生成函数
@@ -168,7 +172,8 @@ PagedAttention 是一种高级优化技术，灵感来自操作系统中的虚�
 
 由于直接实现 PagedAttention 需要复杂的底层优化，我们使用 vLLM 库来实现这一功能。vLLM 是一个高效推理引擎，内置了对 PagedAttention 的支持。
 
-```python
+
+```
 # 安装 vLLM 库
 # !pip install vllm
 
@@ -224,7 +229,7 @@ PagedAttention 通过分页机制解决了 KVCache 的内存碎片问题。它�
 在实际应用中，KVCache 优化通常与其他技术结合使用，如量化、剪枝和蒸馏等。对于极长序列生成，还可以考虑稀疏注意力只计算与最近 token 的注意力，减少计算量；线性注意力使用线性复杂度的注意力变体；内存换计算在内存充足时缓存更多中间结果。
 
 
-```python
+```
 def practical_kv_cache_usage():
     """
     演示在实际项目中使用 KVCache 的最佳实践
