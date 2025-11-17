@@ -58,7 +58,7 @@ $$
 h=W_0x+\alpha\Delta Wx=W_0x+\alpha BAx
 $$
 
-在LoRA中，我们想要将乘积$BA$初始化为0，以便从预训练的模型开始微调，这意味着权重$A$和$B$中至少有一个初始化为0。而如果两者都初始化为0，在这种情况下模型学习是无法进行的，因为这将是一个鞍点。因此，LoRA对 $A$ 中的每个量使用随机高斯分布进行初始化，而将 $B$ 初始化为 0。
+在 LoRA 中，我们想要将乘积 $BA$ 初始化为 0，以便从预训练的模型开始微调，这意味着权重 $A$ 和 $B$ 中至少有一个初始化为 0。而如果两者都初始化为 0，在这种情况下模型学习是无法进行的，因为这将是一个鞍点。因此，LoRA 对 $A$ 中的每个量使用随机高斯分布进行初始化，而将 $B$ 初始化为 0。
 
 ![图 4](./images/05LoRA04.gif)
 
@@ -276,9 +276,9 @@ $$
 
 ### LoRA+ 算法原理
 
-标准的LoRA在参数高效微调领域取得了巨大成功，但其初始实现中一个看似微不足道的细节—为分解后的矩阵$A$和$B$设置相同的学习率—掩盖了其训练动态中的一个关键低效点。**LoRA+** 的核心贡献，正是通过严谨的理论分析揭示并修正了这一问题，从而在不增加任何计算成本的前提下，解锁了更快的收敛速度和更优的模型性能。
+标准的 LoRA 在参数高效微调领域取得了巨大成功，但其初始实现中一个看似微不足道的细节—为分解后的矩阵 $A$ 和 $B$ 设置相同的学习率—掩盖了其训练动态中的一个关键低效点。**LoRA+** 的核心贡献，正是通过严谨的理论分析揭示并修正了这一问题，从而在不增加任何计算成本的前提下，解锁了更快的收敛速度和更优的模型性能。
 
-LoRA将权重矩阵的更新$\Delta W$分解为$BA$，其中B为$n×r$矩阵，A为$r×n$矩阵。在反向传播过程中，损失函数$L$对这两个矩阵的梯度可以表示为：
+LoRA 将权重矩阵的更新 $\Delta W$ 分解为 $BA$，其中 B 为 $n×r$ 矩阵，A 为 $r×n$ 矩阵。在反向传播过程中，损失函数 $L$ 对这两个矩阵的梯度可以表示为：
 $$
 \frac{\partial L}{\partial A}=B^T\cdot\left(\frac{\partial L}{\partial(BA)}\right)
 $$
@@ -287,14 +287,14 @@ $$
 \frac{\partial L}{\partial B}=\left(\frac{\partial L}{\partial(BA)}\right)\cdot A^T
 $$
 
-这里的关键在于矩阵的维度和乘法顺序。让我们更直观地考察梯度的范数或尺度。假设输入$x$和梯度$\frac{\partial L}{\partial BA}$中的元素大致独立且方差为1。
+这里的关键在于矩阵的维度和乘法顺序。让我们更直观地考察梯度的范数或尺度。假设输入 $x$ 和梯度 $\frac{\partial L}{\partial BA}$ 中的元素大致独立且方差为 1。
 
-- **对于矩阵B的梯度$\frac{\partial L}{\partial B}$**：
-  $\frac{\partial L}{\partial B}$的每一列都是$\frac{\partial L}{\partial BA}$与$A$的某一列的内积。A的列向量维度为$r$。根据随机矩阵理论的直觉，这个内积的结果（即$\frac{\partial L}{\partial B}$的单个元素）的尺度大致是$O(\sqrt{r})$。
-- **对于矩阵A的梯度$\frac{\partial L}{\partial A}$**：
-  $\frac{\partial L}{\partial A}$的每一行都是$B$的某一行与$\frac{\partial L}{\partial BA}$的内积。B的行向量维度为$n$。同理，这个内积的结果（即$\frac{\partial L}{\partial A}$的单个元素）的尺度大致是$O(\sqrt{n})$。
+- **对于矩阵 B 的梯度 $\frac{\partial L}{\partial B}$**：
+  $\frac{\partial L}{\partial B}$ 的每一列都是 $\frac{\partial L}{\partial BA}$ 与 $A$ 的某一列的内积。A 的列向量维度为 $r$。根据随机矩阵理论的直觉，这个内积的结果（即 $\frac{\partial L}{\partial B}$ 的单个元素）的尺度大致是 $O(\sqrt{r})$。
+- **对于矩阵 A 的梯度 $\frac{\partial L}{\partial A}$**：
+  $\frac{\partial L}{\partial A}$ 的每一行都是 $B$ 的某一行与 $\frac{\partial L}{\partial BA}$ 的内积。B 的行向量维度为 $n$。同理，这个内积的结果（即 $\frac{\partial L}{\partial A}$ 的单个元素）的尺度大致是 $O(\sqrt{n})$。
 
-由于在大模型中，模型宽度$n$通常远大于LoRA的秩$r$（例如 $n$=4096, $r$=16），这就导致了一个根本性的**梯度尺度不对称性**：
+由于在大模型中，模型宽度 $n$ 通常远大于 LoRA 的秩 $r$（例如 $n$=4096, $r$=16），这就导致了一个根本性的**梯度尺度不对称性**：
 $$
 \left\|\frac{\partial L}{\partial A}\right\|\approx O(\sqrt{n})
 $$
@@ -303,15 +303,15 @@ $$
 \left\|\frac{\partial L}{\partial B}\right\|\approx O(\sqrt{r})
 $$
 
-这意味着，**传递到矩阵A的梯度天然就比传递到矩阵B的梯度在尺度上大得多**。
+这意味着，**传递到矩阵 A 的梯度天然就比传递到矩阵 B 的梯度在尺度上大得多**。
 
-当标准LoRA对两者使用相同的学习率$\eta$时，更新步长$\Delta A=\eta\cdot\frac{\partial L}{\partial A}$和$\Delta B=\eta\cdot\frac{\partial L}{\partial B}$的尺度也会存在巨大差异。为了保证训练的整体稳定性（主要是防止$\Delta A$过大导致的发散），学习率$\eta$必须设置得相对较小，以适应$\frac{\partial L}{\partial A}$这个“大梯度”。
+当标准 LoRA 对两者使用相同的学习率 $\eta$ 时，更新步长 $\Delta A=\eta\cdot\frac{\partial L}{\partial A}$ 和 $\Delta B=\eta\cdot\frac{\partial L}{\partial B}$ 的尺度也会存在巨大差异。为了保证训练的整体稳定性（主要是防止 $\Delta A$ 过大导致的发散），学习率 $\eta$ 必须设置得相对较小，以适应 $\frac{\partial L}{\partial A}$ 这个“大梯度”。
 
-然而，这个对于$A$来说“安全”的学习率$\eta$，对于$B$来说就太小了。$\Delta B$的更新步长会变得微不足道，导致矩阵$B$的学习过程极其缓慢，几乎陷入停滞。
+然而，这个对于 $A$ 来说“安全”的学习率 $\eta$，对于 $B$ 来说就太小了。$\Delta B$ 的更新步长会变得微不足道，导致矩阵 $B$ 的学习过程极其缓慢，几乎陷入停滞。
 
 LoRA+的解决方案直击问题核心：既然梯度尺度存在不对称性，那么就应该用学习率来抵消这种不对称性，从而让两个矩阵的有效更新步长保持在相似的的尺度上。
 
-理想的状况是，我们希望权重矩阵的实际变化量$\| \Delta A \|$ 和 $\| \Delta B \|$能够对学习过程做出同等重要的贡献。为了达到这个目的，学习率$\eta_A$和$\eta_B$需要满足以下关系：
+理想的状况是，我们希望权重矩阵的实际变化量 $\| \Delta A \|$ 和 $\| \Delta B \|$ 能够对学习过程做出同等重要的贡献。为了达到这个目的，学习率 $\eta_A$ 和 $\eta_B$ 需要满足以下关系：
 $$
 \eta_A \cdot \left\| \frac{\partial L}{\partial A} \right\| \approx \eta_B \cdot \left\| \frac{\partial L}{\partial B} \right\|
 $$
@@ -324,55 +324,55 @@ $$
 $$
 \frac{\eta_B}{\eta_A} \approx O\left( \frac{\sqrt{n}}{\sqrt{r}} \right)
 $$
-由于$n\gg r$，这意味着$\eta_B$需要远大于$\eta_A$.
+由于 $n\gg r$，这意味着 $\eta_B$ 需要远大于 $\eta_A$.
 
-LoRA+将这一理论洞察转化为一个简单且实用的策略。它没有要求用户去精确计算$n$和$r$的比值，而是引入了一个固定的、远大于1的比率超参数$\lambda$，使得$\eta_B=\lambda×\eta_A$，其中$\eta_A$为用户调节的基础学习率。
+LoRA+将这一理论洞察转化为一个简单且实用的策略。它没有要求用户去精确计算 $n$ 和 $r$ 的比值，而是引入了一个固定的、远大于 1 的比率超参数 $\lambda$，使得 $\eta_B=\lambda×\eta_A$，其中 $\eta_A$ 为用户调节的基础学习率。
 
-通过设置一个较大的$\lambda$（例如$\lambda$=16），$\eta_B$被显著放大，从而有效地补偿了$\frac{\partial L}{\partial B}$较小的梯度尺度。这使得$\Delta B$的更新步长恢复到了一个合理的量级。
+通过设置一个较大的 $\lambda$（例如 $\lambda$=16），$\eta_B$ 被显著放大，从而有效地补偿了 $\frac{\partial L}{\partial B}$ 较小的梯度尺度。这使得 $\Delta B$ 的更新步长恢复到了一个合理的量级。
 
 ![图 17](./images/05LoRA17.png)
 
 这种对学习率的精准校正，带来了两个直接且显著的好处：
 
-1. **更快的收敛速度**：当$A$和$B$都以“正确”的步长协同更新时，模型能更直接、更高效地探索最优的低秩子空间，避免了因$B$学习缓慢而导致的优化路径迂回。这直接体现为训练收敛速度的大幅提升。如下图，LoRA+（蓝色线条）仅需原始LoRA(黄色线条)大约一半的训练步长，即可达到甚至超过后者的收敛程度。
-2. **更优的模型性能**：标准LoRA中，由于$B$的学习不充分，模型可能未能找到最优的特征提取方式。LoRA+通过“激活”$B$的学习过程，使得模型能够学习到对下游任务更具表达能力的低秩表示。一个更优的低秩子空间自然会带来最终模型性能的提升，尤其是在那些需要更强特征自适应能力的复杂任务上。
+1. **更快的收敛速度**：当 $A$ 和 $B$ 都以“正确”的步长协同更新时，模型能更直接、更高效地探索最优的低秩子空间，避免了因 $B$ 学习缓慢而导致的优化路径迂回。这直接体现为训练收敛速度的大幅提升。如下图，LoRA+（蓝色线条）仅需原始 LoRA(黄色线条)大约一半的训练步长，即可达到甚至超过后者的收敛程度。
+2. **更优的模型性能**：标准 LoRA 中，由于 $B$ 的学习不充分，模型可能未能找到最优的特征提取方式。LoRA+通过“激活”$B$ 的学习过程，使得模型能够学习到对下游任务更具表达能力的低秩表示。一个更优的低秩子空间自然会带来最终模型性能的提升，尤其是在那些需要更强特征自适应能力的复杂任务上。
 
 ![图 18](./images/05LoRA18.png)
 
-总的来说，LoRA+基于对LoRA反向传播过程中梯度尺度不对称性的深刻理论洞察，为两个角色不同的矩阵分配合理缩放的学习率，从根本上解决了标准LoRA中的矩阵$B$学习不足的问题，从而以零额外计算成本的方式，实现了训练效率和模型精度的双重突破。
+总的来说，LoRA+基于对 LoRA 反向传播过程中梯度尺度不对称性的深刻理论洞察，为两个角色不同的矩阵分配合理缩放的学习率，从根本上解决了标准 LoRA 中的矩阵 $B$ 学习不足的问题，从而以零额外计算成本的方式，实现了训练效率和模型精度的双重突破。
 
 ### MoE_LoRA 算法原理
 
-LoRA的模块化特性激发了一个极具吸引力的设想：我们是否能像玩乐高积木一样，将针对不同任务或风格微调好的LoRA模块自由组合，从而创造出全新的、复合的能力？例如，将一个精通“画狗”的LoRA、一个擅长“赛博朋克风格”的LoRA，以及一个专门学习“戴墨镜”概念的LoRA组合起来，可以生成一幅高质量的“戴着墨镜的赛博朋克风格的狗”的图像。
+LoRA 的模块化特性激发了一个极具吸引力的设想：我们是否能像玩乐高积木一样，将针对不同任务或风格微调好的 LoRA 模块自由组合，从而创造出全新的、复合的能力？例如，将一个精通“画狗”的 LoRA、一个擅长“赛博朋克风格”的 LoRA，以及一个专门学习“戴墨镜”概念的 LoRA 组合起来，可以生成一幅高质量的“戴着墨镜的赛博朋克风格的狗”的图像。
 
-然而，当研究者们尝试用最直接的方法——**线性算术组合**（即简单地将各专家LoRA权重$\Delta W$求和）——来实现这一目标时，很快就遇到了难以逾越的障碍。
+然而，当研究者们尝试用最直接的方法——**线性算术组合**（即简单地将各专家 LoRA 权重 $\Delta W$ 求和）——来实现这一目标时，很快就遇到了难以逾越的障碍。
 $$
 \hat{\boldsymbol{W}}=\boldsymbol{W}+\sum_{i=1}^N\Delta\boldsymbol{W}_i,
 $$
 这种简单组合的背后潜藏着两大根本性问题：
 
-1. **破坏性干扰**：当N增加到一定数量后，这种方式可能会影响原始权重$W$，从而降低模型的生成能力。
-2. **特征稀释**：为了缓解上述的问题，一个常见的做法是对组合权重进行归一化（例如，保证权重之和为1）。但这又引入了新的问题：随着组合的LoRA数量增多，分配给每个LoRA的权重$w_i$就必须相应减小。这就好比一个委员会里专家太多，每个人的发言时间都被压缩，导致其独特的见解无法充分表达。“赛博朋克”的风格感可能会因为权重过低而变得微乎其微，“墨镜”的特征也可能变得模糊不清。
+1. **破坏性干扰**：当 N 增加到一定数量后，这种方式可能会影响原始权重 $W$，从而降低模型的生成能力。
+2. **特征稀释**：为了缓解上述的问题，一个常见的做法是对组合权重进行归一化（例如，保证权重之和为 1）。但这又引入了新的问题：随着组合的 LoRA 数量增多，分配给每个 LoRA 的权重 $w_i$ 就必须相应减小。这就好比一个委员会里专家太多，每个人的发言时间都被压缩，导致其独特的见解无法充分表达。“赛博朋克”的风格感可能会因为权重过低而变得微乎其微，“墨镜”的特征也可能变得模糊不清。
 
 $$
 \hat{\boldsymbol{W}}=\boldsymbol{W}+\sum_{i=1}^Nw_i\cdot\Delta\boldsymbol{W}_i
 $$
 
-为了绕过这些问题，**基于参考的微调**等方法被提出，但它们通常需要重新进行大规模训练，这不仅成本高昂，更彻底牺牲了LoRA“即插即用”的核心优势。
+为了绕过这些问题，**基于参考的微调**等方法被提出，但它们通常需要重新进行大规模训练，这不仅成本高昂，更彻底牺牲了 LoRA“即插即用”的核心优势。
 
-因此，一个核心的挑战摆在面前：**如何动态有效地组合多个经过训练的LoRA，同时保留它们所有的个体特征？**
+因此，一个核心的挑战摆在面前：**如何动态有效地组合多个经过训练的 LoRA，同时保留它们所有的个体特征？**
 
-对于这个问题，一个经典解决方案是**Mixture of LoRA Experts (MOLE)** 。MOLE彻底颠覆了为每个LoRA分配一个全局、静态混合权重的“一刀切”思路。它的核心思路来源于论文中的一个关键观察：**一个完整的LoRA并非一个不可分割的整体，其内部不同层级的权重所学习和控制的特征是截然不同的。**
+对于这个问题，一个经典解决方案是**Mixture of LoRA Experts (MOLE)** 。MOLE 彻底颠覆了为每个 LoRA 分配一个全局、静态混合权重的“一刀切”思路。它的核心思路来源于论文中的一个关键观察：**一个完整的 LoRA 并非一个不可分割的整体，其内部不同层级的权重所学习和控制的特征是截然不同的。**
 
 ![图 19](./images/05LoRA19.png)
 
-基于此，MOLE提出了一种全新的范式：将LoRA组合问题，转化为在模型的**每一层**都召开一次“**多方专家委员会会议**”。在这个会议上，不再使用一个固定的全局权重，而是引入一个**动态的、可学习的门控函数（Gating Function，G）**，它扮演着“智能会议主持人”的角色。这位主持人会根据当前需要解决的具体问题（即模型的输入），在**当前层级**动态地决定应该赋予来自不同LoRA的“层级专家”多大的话语权。另外，MOLE也允许手动去除某个LoRA块（如上图的LoRA $\gamma$），**算法不变**的将该LoRA块的权重分配给其它LoRA专家。
+基于此，MOLE 提出了一种全新的范式：将 LoRA 组合问题，转化为在模型的**每一层**都召开一次“**多方专家委员会会议**”。在这个会议上，不再使用一个固定的全局权重，而是引入一个**动态的、可学习的门控函数（Gating Function，G）**，它扮演着“智能会议主持人”的角色。这位主持人会根据当前需要解决的具体问题（即模型的输入），在**当前层级**动态地决定应该赋予来自不同 LoRA 的“层级专家”多大的话语权。另外，MOLE 也允许手动去除某个 LoRA 块（如上图的 LoRA $\gamma$），**算法不变**的将该 LoRA 块的权重分配给其它 LoRA 专家。
 
-MOLE的架构在Transformer的每个需要适配的层级都进行了对应的设计，下面我们来了解其详细的技术原理。
+MOLE 的架构在 Transformer 的每个需要适配的层级都进行了对应的设计，下面我们来了解其详细的技术原理。
 
 ![图 20](./images/05LoRA20.png)
 
-给定训练好的$N$个LoRA专家模块$\Omega=\{\Delta\theta_i\}_{i=0}^{N-1}$，对于输入$x\in\mathbb{R}^{L\times d}$（$L$是序列长度，$d$是维度），在一个transformer块内，先后经过其Attention层和FFN层的LoRA模块，计算出对应第$i$个专家的LoRA增量$\boldsymbol{E}_{\Delta\theta_i}\left(\boldsymbol{x}\right)$。（$LN$为layer normalization操作）
+给定训练好的 $N$ 个 LoRA 专家模块 $\Omega=\{\Delta\theta_i\}_{i=0}^{N-1}$，对于输入 $x\in\mathbb{R}^{L\times d}$（$L$ 是序列长度，$d$ 是维度），在一个 transformer 块内，先后经过其 Attention 层和 FFN 层的 LoRA 模块，计算出对应第 $i$ 个专家的 LoRA 增量 $\boldsymbol{E}_{\Delta\theta_i}\left(\boldsymbol{x}\right)$。（$LN$ 为 layer normalization 操作）
 $$
 \boldsymbol{x}_{\Delta\theta_i}^{^{\prime}}=\boldsymbol{x}+f_{\mathrm{Attn}}\left(\mathrm{LN}(\boldsymbol{x})|\Delta\theta_i\right)
 $$
@@ -381,32 +381,32 @@ $$
 \boldsymbol{E}_{\Delta\theta_i}\left(\boldsymbol{x}\right)=\boldsymbol{x}_{\Delta\theta_i}^{^{\prime}}+f_{\mathrm{FFN}}\left(\mathrm{LN}\left(\boldsymbol{x}_{\Delta\theta_i}^{^{\prime}}\right)|\Delta\theta_i\right)
 $$
 
-接着对所有LoRA增量进行向量拼接和归一化操作，得到$\boldsymbol{E}_\Omega\left(\boldsymbol{x}\right)\in\mathbb{R}^\xi$且$\xi=N\times L\times d$。
+接着对所有 LoRA 增量进行向量拼接和归一化操作，得到 $\boldsymbol{E}_\Omega\left(\boldsymbol{x}\right)\in\mathbb{R}^\xi$ 且 $\xi=N\times L\times d$。
 $$
 E_{\Omega}\left(\boldsymbol{x}\right)=\text{Normalization}\left(\boldsymbol{E}_{\Delta\theta_{0}}\left(\boldsymbol{x}\right)\oplus\ldots\oplus\boldsymbol{E}_{\Delta\theta_{N-1}}\left(\boldsymbol{x}\right)\right)
 $$
 
-再对$\boldsymbol{E}_\Omega\left(\boldsymbol{x}\right)$进行向量平展操作，并用一个**可学习**的**$\boldsymbol{e}\in\mathbb{R}^{\xi\times N}$**对其点积，将$\boldsymbol{E}_\Omega\left(\boldsymbol{x}\right)$降至$N$维。
+再对 $\boldsymbol{E}_\Omega\left(\boldsymbol{x}\right)$ 进行向量平展操作，并用一个**可学习**的**$\boldsymbol{e}\in\mathbb{R}^{\xi\times N}$**对其点积，将 $\boldsymbol{E}_\Omega\left(\boldsymbol{x}\right)$ 降至 $N$ 维。
 $$
 \varepsilon=\mathrm{Flatten}{\left(\boldsymbol{E}_\Omega\left(\boldsymbol{x}\right)\right)}^\top\cdot\boldsymbol{e},\quad\varepsilon\in\mathbb{R}^N
 $$
-那么每个LoRA模块的门控值如下，其中温度标量$\mathrm{T}$是**可学习**的。
+那么每个 LoRA 模块的门控值如下，其中温度标量 $\mathrm{T}$ 是**可学习**的。
 $$
 \mathcal{G}(\varepsilon_i)=\frac{\exp\left(\varepsilon_i/\tau\right)}{\sum_{j=1}^N\exp\left(\varepsilon_j/\tau\right)}
 $$
-将每个LoRA专家的输出与对应的门控值相乘，得到门控函数$G(·)$的最终输出:
+将每个 LoRA 专家的输出与对应的门控值相乘，得到门控函数 $G(·)$ 的最终输出:
 $$
 \tilde{\boldsymbol{E}}_{\Omega}(\boldsymbol{x})=\sum_{i=0}^{N}\mathcal{G}_{i}\left(\varepsilon_{i}\right)\cdot\boldsymbol{E}_{\Delta\theta_{i}}\left(\boldsymbol{x}\right)
 $$
-最后，将门控制函数的输出（LoRA增量）与预训练网络的输出（$\boldsymbol{F}_\theta$）相加，计算出该transformer块的最终输出:
+最后，将门控制函数的输出（LoRA 增量）与预训练网络的输出（$\boldsymbol{F}_\theta$）相加，计算出该 transformer 块的最终输出:
 $$
 \boldsymbol{O}\left(\boldsymbol{x}\right)=\boldsymbol{F}_\theta\left(\boldsymbol{x}\right)+\tilde{\boldsymbol{E}}_\Omega\left(\boldsymbol{x}\right)
 $$
-在训练门控网络时，研究者发现了一个新问题：随着训练步数的增加，门控函数的分布概率的平均熵逐渐减小（下图蓝色线条），模型会很快倾向于只给少数几个表现优异的LoRA分配高权重（如下图的LoRA $\beta$，门控概率为68%），而忽略其他专家，这将丧失组合的多样性。
+在训练门控网络时，研究者发现了一个新问题：随着训练步数的增加，门控函数的分布概率的平均熵逐渐减小（下图蓝色线条），模型会很快倾向于只给少数几个表现优异的 LoRA 分配高权重（如下图的 LoRA $\beta$，门控概率为 68%），而忽略其他专家，这将丧失组合的多样性。
 
 ![图 21](./images/05LoRA21.png)
 
-为了鼓励门控网络分配权重时的平衡性，MOLE引入了一个**门控平衡损失 (Gating Balancing Loss)**，作为整体Loss的补充项。该损失项旨在最小化不同LoRA专家在整个训练批次中被分配到的**平均权重**之间的差异。它像一个惩罚机制，如果某个专家被持续冷落或过度依赖，损失值就会增大，从而迫使模型学会更均衡地利用所有专家的能力。
+为了鼓励门控网络分配权重时的平衡性，MOLE 引入了一个**门控平衡损失 (Gating Balancing Loss)**，作为整体 Loss 的补充项。该损失项旨在最小化不同 LoRA 专家在整个训练批次中被分配到的**平均权重**之间的差异。它像一个惩罚机制，如果某个专家被持续冷落或过度依赖，损失值就会增大，从而迫使模型学会更均衡地利用所有专家的能力。
 $$
 \mathcal{L}_{\mathrm{balance}}=-\log\left(\prod_{i=0}^N\mathbf{q}^{(i)}\right)
 $$
@@ -415,57 +415,57 @@ $$
 \begin{aligned}\mathbf{q}^{(i)}=\frac{1}{M}\sum_{k=1}^{M}\frac{\exp\left(\varepsilon_i^k/\tau\right)}{\sum_{j=1}^{N}\exp\left(\varepsilon_j^k/\tau\right)}\end{aligned}
 $$
 
-其中，$M$表示含有门控函数的transformer块的数量，N表示LoRA专家的数量。
+其中，$M$ 表示含有门控函数的 transformer 块的数量，N 表示 LoRA 专家的数量。
 
-在实验中，研究者证明了MoLE的有效性。MoLE在Big-Bench Hard（一个NLP任务）测试集上的表现明显优于NLA（normalized linear arithmetic composition，即上文的归一化线性组合算法）和其它MoELoRA方法（LoRAHub、PEMS）。另外，在其它任务，例如多模态文生图中，MOLE也成功做到了在保留各个LoRA鲜明特征的同时，实现灵活、高质量的动态组合的效果。
+在实验中，研究者证明了 MoLE 的有效性。MoLE 在 Big-Bench Hard（一个 NLP 任务）测试集上的表现明显优于 NLA（normalized linear arithmetic composition，即上文的归一化线性组合算法）和其它 MoELoRA 方法（LoRAHub、PEMS）。另外，在其它任务，例如多模态文生图中，MOLE 也成功做到了在保留各个 LoRA 鲜明特征的同时，实现灵活、高质量的动态组合的效果。
 
-然而，MOLE也并非完美。论文同样指出，当组合的LoRA专家数量变得极大时（例如超过100个），所有MoELoRA组合方法的性能都开始出现下降。这表明，如何高效管理和组合超大规模的专家库，仍然是一个开放的挑战。
+然而，MOLE 也并非完美。论文同样指出，当组合的 LoRA 专家数量变得极大时（例如超过 100 个），所有 MoELoRA 组合方法的性能都开始出现下降。这表明，如何高效管理和组合超大规模的专家库，仍然是一个开放的挑战。
 
 ![图 22](./images/05LoRA22.png)
 
 ## LoRA 微调应用场景
 
-得益于transformer架构在各领域的广泛应用，LoRA的核心原理——通过低秩矩阵分解来近似权重更新，具备高度的方法论通用性。因此，该技术不仅限于其最初应用的自然语言处理领域，其高效和模块化的特性使其在计算机视觉和多模态学习等领域也展现出巨大的应用价值。
+得益于 transformer 架构在各领域的广泛应用，LoRA 的核心原理——通过低秩矩阵分解来近似权重更新，具备高度的方法论通用性。因此，该技术不仅限于其最初应用的自然语言处理领域，其高效和模块化的特性使其在计算机视觉和多模态学习等领域也展现出巨大的应用价值。
 
-本节将介绍一些 LoRA 在自然语言处理（NLP）、计算机视觉（CV）以及多模态（Multimodal）这三个核心AI领域的具体应用案例。
+本节将介绍一些 LoRA 在自然语言处理（NLP）、计算机视觉（CV）以及多模态（Multimodal）这三个核心 AI 领域的具体应用案例。
 
 ### 自然语言处理应用
 
-NLP 领域是 LoRA 技术最先被提出并得到广泛验证的场景。其核心应用价值在于，以极低的参数成本，将**通用**的LLM**适配于特定的下游任务**。
+NLP 领域是 LoRA 技术最先被提出并得到广泛验证的场景。其核心应用价值在于，以极低的参数成本，将**通用**的 LLM**适配于特定的下游任务**。
 
-**Chat Law**是北京大学推出的一个中文法律大语言模型。它使用LLaMA系列模型作为微调基模型，为将基模型精准适配于法律领域，项目采用了以 LoRA 为代表的参数高效微调方法。通过在高质量的中文法律数据集上进行训练，仅更新少量参数，就成功地将专业的法律知识、术语和逻辑注入了模型，以极低的成本快速验证了领域适配的可行性。
+**Chat Law**是北京大学推出的一个中文法律大语言模型。它使用 LLaMA 系列模型作为微调基模型，为将基模型精准适配于法律领域，项目采用了以 LoRA 为代表的参数高效微调方法。通过在高质量的中文法律数据集上进行训练，仅更新少量参数，就成功地将专业的法律知识、术语和逻辑注入了模型，以极低的成本快速验证了领域适配的可行性。
 
 ![图 23](./images/05LoRA23.png)
 
-**Bencao**则是哈工大SCIR推出的一个中文医疗大语言模型。它以LLaMA-7B作为基模型，同样采用了LoRA的方法，进行了指令微调。通过在精心构建的中文医疗问答数据集上进行训练，Bencao提高了基模型在医疗领域的问答效果。
+**Bencao**则是哈工大 SCIR 推出的一个中文医疗大语言模型。它以 LLaMA-7B 作为基模型，同样采用了 LoRA 的方法，进行了指令微调。通过在精心构建的中文医疗问答数据集上进行训练，Bencao 提高了基模型在医疗领域的问答效果。
 
 ![图 24](./images/05LoRA24.png)
 
-此外，还有相当多应用LoRA微调下游任务模型的案例，涉及金融（FinGPT）、数学（MetaMath）、科学（Mol-Llama）等等领域。**这些案例共同说明，LoRA 已经成为将通用大模型能力快速、低成本地注入垂直领域知识的关键技术。**
+此外，还有相当多应用 LoRA 微调下游任务模型的案例，涉及金融（FinGPT）、数学（MetaMath）、科学（Mol-Llama）等等领域。**这些案例共同说明，LoRA 已经成为将通用大模型能力快速、低成本地注入垂直领域知识的关键技术。**
 
 ### 计算机视觉领域应用
 
 与自然语言处理领域相似，LoRA 在计算机视觉领域的应用，尤其是在以 **Vision Transformer (ViT)** 为代表的新一代模型架构中，也取得了显著的成功。ViT 的核心思想是将图像分割为一系列的图像块（Patches），并将这些图像块作为序列输入到 Transformer 编码器中进行处理，这种“图像即序列”的范式与 NLP 中处理文本的方式异曲同工，为 LoRA 技术的无缝迁移提供了理论基础。
 
-这里介绍一个应用案例：Xinyang Pu等人将LoRA 技术应用于基于Swin Transformer（ViT的革新架构） 中，以实现定向物体检测模型的微调。
+这里介绍一个应用案例：Xinyang Pu 等人将 LoRA 技术应用于基于 Swin Transformer（ViT 的革新架构） 中，以实现定向物体检测模型的微调。
 
 ![图 25](./images./05LoRA25.png)
 
-Swin Transformer以一种层级化的方式处理图像。它首先将输入图像分割成不重叠的图像块，其架构由多个阶段组成，每个阶段都包含一个图像块合并层和一系列Swin Transformer模块（**Swin Transformer Blocks**）。LoRA技术正是在这些核心的Swin Transformer模块内部，特别是在其自注意力（Self-Attention）机制中得到应用。
+Swin Transformer 以一种层级化的方式处理图像。它首先将输入图像分割成不重叠的图像块，其架构由多个阶段组成，每个阶段都包含一个图像块合并层和一系列 Swin Transformer 模块（**Swin Transformer Blocks**）。LoRA 技术正是在这些核心的 Swin Transformer 模块内部，特别是在其自注意力（Self-Attention）机制中得到应用。
 
-一个标准的Swin Transformer模块包含一个多头自注意力（MSA）模块。Swin Transformer的独特之处在于它连续使用两种不同的模块配置：一种采用常规的基于窗口的多头自注意力（**W-MSA**），紧接着的另一种则采用滑动窗口多头自注意力（**SW-MSA**）。这种窗口化机制将自注意力的计算限制在局部窗口内，然后在后续层中通过“滑动”来促进跨窗口的信息交互，从而学习到全局的图像表示。
+一个标准的 Swin Transformer 模块包含一个多头自注意力（MSA）模块。Swin Transformer 的独特之处在于它连续使用两种不同的模块配置：一种采用常规的基于窗口的多头自注意力（**W-MSA**），紧接着的另一种则采用滑动窗口多头自注意力（**SW-MSA**）。这种窗口化机制将自注意力的计算限制在局部窗口内，然后在后续层中通过“滑动”来促进跨窗口的信息交互，从而学习到全局的图像表示。
 
-当将LoRA应用于Swin Transformer时，其主要适配目标是W-MSA和SW-MSA模块内部的 $W_q$ 和 $W_v$ 矩阵。
+当将 LoRA 应用于 Swin Transformer 时，其主要适配目标是 W-MSA 和 SW-MSA 模块内部的 $W_q$ 和 $W_v$ 矩阵。
 
-在该研究中，LoRA微调后模型的能力，也与全量微调、真值相差无几，物体识别的效果几乎没有任何损失，这进一步证明了LoRA在CV领域的微调有效性。
+在该研究中，LoRA 微调后模型的能力，也与全量微调、真值相差无几，物体识别的效果几乎没有任何损失，这进一步证明了 LoRA 在 CV 领域的微调有效性。
 
 ![图 26](./images/05LoRA26.png)
 
 ### 多模态领域应用
 
-LoRA 技术在以 Stable Diffusion 为代表的Latent Diffusion Models中的应用，是其影响力最显著的拓展。此类模型的架构由三大核心部分组成：负责将文本提示映射为语义嵌入的**文本编码器 (Text Encoder)**；以该嵌入为条件，在潜空间中执行去噪预测的**U-Net**；以及负责在潜空间与像素空间之间转换的**变分自编码器 (VAE)**。
+LoRA 技术在以 Stable Diffusion 为代表的 Latent Diffusion Models 中的应用，是其影响力最显著的拓展。此类模型的架构由三大核心部分组成：负责将文本提示映射为语义嵌入的**文本编码器 (Text Encoder)**；以该嵌入为条件，在潜空间中执行去噪预测的**U-Net**；以及负责在潜空间与像素空间之间转换的**变分自编码器 (VAE)**。
 
-LoRA 的微调策略被精准且并行地应用于此架构的两个关键组件中。在 **U-Net** 内部，LoRA 主要作用于其**交叉注意力模块 (Cross-Attention)**，通过对$W_q$、$W_k$、$W_v$线性矩阵进行低秩适应，以调整模型对文本条件的视觉响应。与此同时，微调也应用于**文本编码器**，其目标是其内部 Transformer 块的**自注意力 (Self-Attention)** 模块，同样是针对其线性矩阵，目的是为特定的触发词（Trigger Word）生成一个适应的语义表征。
+LoRA 的微调策略被精准且并行地应用于此架构的两个关键组件中。在 **U-Net** 内部，LoRA 主要作用于其**交叉注意力模块 (Cross-Attention)**，通过对 $W_q$、$W_k$、$W_v$ 线性矩阵进行低秩适应，以调整模型对文本条件的视觉响应。与此同时，微调也应用于**文本编码器**，其目标是其内部 Transformer 块的**自注意力 (Self-Attention)** 模块，同样是针对其线性矩阵，目的是为特定的触发词（Trigger Word）生成一个适应的语义表征。
 $$
 W_{unet}^{^{\prime}}=W_{unet}+ \alpha_{unet} W_{unet}
 $$
@@ -478,9 +478,9 @@ $$
 
 ![图 27](./images/05LoRA27.png)
 
-$\alpha_{unet}$和$\alpha_{text}$的值表示着LoRA权重在U-net和Text-Encoder上的应用程度，下面以一个案例阐述其意义。
+$\alpha_{unet}$ 和 $\alpha_{text}$ 的值表示着 LoRA 权重在 U-net 和 Text-Encoder 上的应用程度，下面以一个案例阐述其意义。
 
-在一个给定真人图片，要求模型生成其毕加索风格图片（提示词）的下游任务中，缩放LoRA微调参数$\alpha_{unet}$和$\alpha_{text}$ 。可以发现，当两个参数值均为0时，模型生成的图片完全与真人无关（LoRA权重未应用，使用基模型生成）；而两个参数值均为1时，生成的图片又逐渐与毕加索风格偏离。最后，合适的参数区间是0.6-0.8。这意味着，两个参数的组合结果对LoRA微调模型的能力有着巨大的影响，两参数均置为1.0也绝非最佳条件。
+在一个给定真人图片，要求模型生成其毕加索风格图片（提示词）的下游任务中，缩放 LoRA 微调参数 $\alpha_{unet}$ 和 $\alpha_{text}$ 。可以发现，当两个参数值均为 0 时，模型生成的图片完全与真人无关（LoRA 权重未应用，使用基模型生成）；而两个参数值均为 1 时，生成的图片又逐渐与毕加索风格偏离。最后，合适的参数区间是 0.6-0.8。这意味着，两个参数的组合结果对 LoRA 微调模型的能力有着巨大的影响，两参数均置为 1.0 也绝非最佳条件。
 
 ![图 28](./images/05LoRA28.png)
 

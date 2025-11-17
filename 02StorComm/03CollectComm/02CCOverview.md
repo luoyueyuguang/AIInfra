@@ -160,7 +160,7 @@ xCCL 的适配层是连接 xCCL 底层通信能力与上层深度学习框架、
 
 **通信框架**负责通信域管理，通信算子的业务串联，协同通信算法模块完成算法选择，协同通信平台模块完成资源申请并实现集合通信任务的下发。
 
-xCCL 会根据系统配置、网络拓扑、数据量动态选择算法，例如 NCCL 的 All-Reduce 对小数据用双二叉树算法、大数据用环形算法，MSCCL 的 All-Reduce 支持All-Pairs、Hierarchical 等多算法切换。
+xCCL 会根据系统配置、网络拓扑、数据量动态选择算法，例如 NCCL 的 All-Reduce 对小数据用双二叉树算法、大数据用环形算法，MSCCL 的 All-Reduce 支持 All-Pairs、Hierarchical 等多算法切换。
 
 **通信算法**作为集合通信算法的承载模块，提供特定集合通信操作的资源计算，并根据通信域信息完成通信任务编排。不同 xCCL 的通信算法实现有所侧重，其核心源于底层硬件适配目标、上层应用场景优化方向和灵活性设计。
 
@@ -198,5 +198,5 @@ xCCL 的**集合通信平台层**是其核心底层组件，核心目标是直�
 
 ## 参考与引用
 
-- HCCL概述 HCCL集合通信库-CANN商用版8.2.RC1开发文档-昇腾社区. Available at: https://www.hiascend.com/document/detail/zh/canncommercial/82RC1/hccl/hcclug/hcclug_000001.html#ZH-CN_TOPIC_0000002370191085__section17991201643111 (Accessed: 13 October 2025). 
+- HCCL 概述 HCCL 集合通信库-CANN 商用版 8.2.RC1 开发文档-昇腾社区. Available at: https://www.hiascend.com/document/detail/zh/canncommercial/82RC1/hccl/hcclug/hcclug_000001.html#ZH-CN_TOPIC_0000002370191085__section17991201643111 (Accessed: 13 October 2025). 
 - Weingram, A. et al. (2023) ‘xCCL: A survey of industry-led collective communication libraries for deep learning’, Journal of Computer Science and Technology, 38(1), pp. 166–195. doi:10.1007/s11390-023-2894-6. 

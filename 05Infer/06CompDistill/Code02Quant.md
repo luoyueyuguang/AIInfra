@@ -95,7 +95,7 @@ import os
     /home/yswang/miniforge3/lib/python3.12/site-packages/tqdm/auto.py:21: TqdmWarning: IProgress not found. Please update jupyter and ipywidgets. See https://ipywidgets.readthedocs.io/en/stable/user_install.html
       from .autonotebook import tqdm as notebook_tqdm
 
-## 3. 加载 FastVLM-0.5B和数据准备
+## 3. 加载 FastVLM-0.5B 和数据准备
 
 让我们先加载原始的 FastVLM-0.5B 模型，作为基准参考。
 
@@ -220,7 +220,7 @@ print("Ready:", IMAGE_CAT, IMAGE_RECEIPT_1895, IMAGE_RECEIPT_SHELL, IMAGE_LANDSC
     images/receipt_shell.jpg
     images/landscape_monet.jpg
 
-以cat为例，输入的图片为：
+以 cat 为例，输入的图片为：
 
 ```python
 import matplotlib.pyplot as plt
@@ -241,7 +241,7 @@ plt.show()
     
 ### 从本地加载模型
 
-比如你将模型下载到本地的`AI Infra/05Infer/06CompDistill/models`之后，便可以从本地模型目录进行加载了。我们加载刚刚准备的cat图片：
+比如你将模型下载到本地的`AI Infra/05Infer/06CompDistill/models`之后，便可以从本地模型目录进行加载了。我们加载刚刚准备的 cat 图片：
 
 ```python
 import os

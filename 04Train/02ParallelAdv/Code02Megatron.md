@@ -62,7 +62,7 @@ TRAIN_CONFIG = {
 
 """
 Megatron 张量并行验证
-- 测试Megatron-LM的分布式训练
+- 测试 Megatron-LM 的分布式训练
 - 更小的模型规模（快速验证）
 - 简单的序列记忆任务
 """
@@ -89,7 +89,7 @@ def init_distributed():
     os.environ["NCCL_SOCKET_IFNAME"] = os.environ.get("NCCL_SOCKET_IFNAME", "^docker0,lo")
     os.environ["NCCL_IB_DISABLE"] = os.environ.get("NCCL_IB_DISABLE", "1")
     os.environ["NCCL_P2P_DISABLE"] = os.environ.get("NCCL_P2P_DISABLE", "0")
-    # 使用PyTorch推荐的环境变量名
+    # 使用 PyTorch 推荐的环境变量名
     os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = os.environ.get("TORCH_NCCL_ASYNC_ERROR_HANDLING", "1")
 
     rank = int(os.environ.get("RANK", "0"))
@@ -127,7 +127,7 @@ def init_distributed():
 
 ```python
 class AllGather(torch.autograd.Function):
-    """All-Gather 操作 - 在特征维度上拼接各GPU的部分输出"""
+    """All-Gather 操作 - 在特征维度上拼接各 GPU 的部分输出"""
     @staticmethod
     def forward(ctx, x):
         ctx.world_size = dist.get_world_size()
@@ -140,7 +140,7 @@ class AllGather(torch.autograd.Function):
         return grad.chunk(ctx.world_size, dim=-1)[dist.get_rank()]
 
 class AllReduce(torch.autograd.Function):
-    """AllReduce操作的autograd包装 - 修复PyTorch警告"""
+    """AllReduce 操作的 autograd 包装 - 修复 PyTorch 警告"""
     @staticmethod
     def forward(ctx, x):
         output = x.clone()
@@ -149,7 +149,7 @@ class AllReduce(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx, grad):
-        # 梯度在反向传播时也需要all_reduce
+        # 梯度在反向传播时也需要 all_reduce
         output = grad.clone()
         dist.all_reduce(output, op=dist.ReduceOp.SUM)
         return output
@@ -185,7 +185,7 @@ class ColumnLinear(nn.Module):
         return local_out
 
 class RowLinear(nn.Module):
-    """行并行线性层 - 使用AllReduce包装"""
+    """行并行线性层 - 使用 AllReduce 包装"""
     def __init__(self, in_dim, out_dim, world_size, rank):
         super().__init__()
         self.local_in_dim = in_dim // world_size
@@ -198,7 +198,7 @@ class RowLinear(nn.Module):
         input_chunks = x.chunk(dist.get_world_size(), dim=-1)
         local_input = input_chunks[dist.get_rank()]
         local_output = F.linear(local_input, self.weight, self.bias)
-        # 使用AllReduce包装，修复autograd警告
+        # 使用 AllReduce 包装，修复 autograd 警告
         return AllReduce.apply(local_output)
 
 class ParallelMLP(nn.Module):
@@ -327,7 +327,7 @@ class ParallelEmbedding(nn.Module):
         local_emb = self.embedding(local_input)
         local_emb[~mask] = 0
 
-        # 使用AllReduce包装
+        # 使用 AllReduce 包装
         return AllReduce.apply(local_emb)
 ```
 
@@ -363,7 +363,7 @@ class ParallelTransformer(nn.Module):
 
 ```python
 def get_memory_stats():
-    """获取当前GPU显存使用情况（MB）"""
+    """获取当前 GPU 显存使用情况（MB）"""
     if torch.cuda.is_available():
         allocated = torch.cuda.memory_allocated() / 1024**2  # MB
         reserved = torch.cuda.memory_reserved() / 1024**2    # MB
@@ -384,9 +384,9 @@ def reset_memory_stats():
 def create_sequence_memory_task(vocab_size=512, seq_len=32, num_sequences=100):
     """
     创建简单的序列记忆任务
-    - 有限词汇表（512个token）
-    - 短序列（32个token）
-    - 固定的训练序列（100条）
+    - 有限词汇表（512 个 token）
+    - 短序列（32 个 token）
+    - 固定的训练序列（100 条）
     """
     # 生成固定的训练序列，确保可重复
     torch.manual_seed(42)
@@ -414,7 +414,7 @@ def train_example():
             print(f"\n{'='*60}")
             print(f"Megatron 张量并行验证")
             print(f"{'='*60}")
-            print(f"GPU数量: {world_size}")
+            print(f"GPU 数量: {world_size}")
             print(f"主机名: {socket.gethostname()}")
 
         dist.barrier()
@@ -440,10 +440,10 @@ def train_example():
 
         if rank == 0:
             total_params = sum(p.numel() for p in model.parameters())
-            print(f"\n模型配置:")
+            print(f"\n 模型配置:")
             print(f"  - Vocab: {config['vocab_size']}, Hidden: {config['hidden_size']}")
             print(f"  - Layers: {config['num_layers']}, Heads: {config['num_heads']}")
-            print(f"  - 参数量: {total_params:,} (每GPU约 {total_params//(world_size*4):,})")
+            print(f"  - 参数量: {total_params:,} (每 GPU 约 {total_params//(world_size*4):,})")
 
         dist.barrier()
 
@@ -454,15 +454,15 @@ def train_example():
         train_data = create_sequence_memory_task(
             vocab_size=config['vocab_size'],
             seq_len=32,  # 短序列
-            num_sequences=100  # 100条训练序列
+            num_sequences=100  # 100 条训练序列
         )
 
         if rank == 0:
-            print(f"\n训练任务: 序列记忆")
+            print(f"\n 训练任务: 序列记忆")
             print(f"  - 训练序列数: {train_data.shape[0]}")
             print(f"  - 序列长度: {train_data.shape[1]}")
             print(f"  - 词汇表大小: {config['vocab_size']}")
-            print(f"\n开始训练...")
+            print(f"\n 开始训练...")
             print(f"{'-'*60}")
 
         dist.barrier()
@@ -470,7 +470,7 @@ def train_example():
         # 重置显存统计
         reset_memory_stats()
 
-        # 训练循环 - 多个epoch确保收敛
+        # 训练循环 - 多个 epoch 确保收敛
         num_epochs = 5
         steps_per_epoch = 100
         best_loss = float('inf')
@@ -517,7 +517,7 @@ def train_example():
             if rank == 0:
                 improvement = "" if epoch == 0 else f" (↓{best_loss - avg_epoch_loss:.4f})"
                 print(f"{'='*60}")
-                print(f"Epoch {epoch+1} 完成 - 平均Loss: {avg_epoch_loss:.4f}{improvement}")
+                print(f"Epoch {epoch+1} 完成 - 平均 Loss: {avg_epoch_loss:.4f}{improvement}")
                 print(f"{'='*60}\n")
 
                 if avg_epoch_loss < best_loss:
@@ -526,9 +526,9 @@ def train_example():
         if rank == 0:
             print(f"\n{'='*60}")
             print(f"✅ 训练完成!")
-            print(f"   最佳Loss: {best_loss:.4f}")
-            print(f"   最终Loss: {avg_epoch_loss:.4f}")
-            print(f"   Loss下降: {train_data.shape[0] * 0.1:.4f} → {avg_epoch_loss:.4f}")
+            print(f"   最佳 Loss: {best_loss:.4f}")
+            print(f"   最终 Loss: {avg_epoch_loss:.4f}")
+            print(f"   Loss 下降: {train_data.shape[0] * 0.1:.4f} → {avg_epoch_loss:.4f}")
             print(f"   峰值显存: {peak_memory:.2f} MB ({peak_memory/1024:.2f} GB)")
             print(f"{'='*60}")
 
@@ -559,7 +559,7 @@ def train_example():
 ============================================
 Megatron 张量并行分布式训练脚本
 ============================================
-本脚本从 Jupyter Notebook 自动生成，用于多GPU分布式训练
+本脚本从 Jupyter Notebook 自动生成，用于多 GPU 分布式训练
 """
 import torch
 import torch.nn as nn
@@ -627,7 +627,7 @@ class AllGather(torch.autograd.Function):
 
 
 class AllReduce(torch.autograd.Function):
-    """AllReduce操作"""
+    """AllReduce 操作"""
     @staticmethod
     def forward(ctx, x):
         output = x.clone()
@@ -817,7 +817,7 @@ def train_example():
             print(f"\n{'='*60}")
             print(f"Megatron 张量并行验证")
             print(f"{'='*60}")
-            print(f"GPU数量: {world_size}")
+            print(f"GPU 数量: {world_size}")
             print(f"主机名: {socket.gethostname()}")
 
         dist.barrier()
@@ -842,10 +842,10 @@ def train_example():
 
         if rank == 0:
             total_params = sum(p.numel() for p in model.parameters())
-            print(f"\n模型配置:")
+            print(f"\n 模型配置:")
             print(f"  - Vocab: {config['vocab_size']}, Hidden: {config['hidden_size']}")
             print(f"  - Layers: {config['num_layers']}, Heads: {config['num_heads']}")
-            print(f"  - 参数量: {total_params:,} (每GPU约 {total_params//(world_size*4):,})")
+            print(f"  - 参数量: {total_params:,} (每 GPU 约 {total_params//(world_size*4):,})")
 
         dist.barrier()
 
@@ -858,11 +858,11 @@ def train_example():
         )
 
         if rank == 0:
-            print(f"\n训练任务: 序列记忆")
+            print(f"\n 训练任务: 序列记忆")
             print(f"  - 训练序列数: {train_data.shape[0]}")
             print(f"  - 序列长度: {train_data.shape[1]}")
             print(f"  - 词汇表大小: {config['vocab_size']}")
-            print(f"\n开始训练...")
+            print(f"\n 开始训练...")
             print(f"{'-'*60}")
 
         dist.barrier()
@@ -907,7 +907,7 @@ def train_example():
             if rank == 0:
                 improvement = "" if epoch == 0 else f" (↓{best_loss - avg_epoch_loss:.4f})"
                 print(f"{'='*60}")
-                print(f"Epoch {epoch+1} 完成 - 平均Loss: {avg_epoch_loss:.4f}{improvement}")
+                print(f"Epoch {epoch+1} 完成 - 平均 Loss: {avg_epoch_loss:.4f}{improvement}")
                 print(f"{'='*60}\n")
 
                 if avg_epoch_loss < best_loss:
@@ -916,8 +916,8 @@ def train_example():
         if rank == 0:
             print(f"\n{'='*60}")
             print(f"✅ 训练完成!")
-            print(f"   最佳Loss: {best_loss:.4f}")
-            print(f"   最终Loss: {avg_epoch_loss:.4f}")
+            print(f"   最佳 Loss: {best_loss:.4f}")
+            print(f"   最终 Loss: {avg_epoch_loss:.4f}")
             print(f"   峰值显存: {peak_memory:.2f} MB ({peak_memory/1024:.2f} GB)")
             print(f"{'='*60}")
 
@@ -976,13 +976,13 @@ else:
     exit_code = os.system(cmd)
 
     if exit_code != 0:
-        print(f"\n训练失败，退出码: {exit_code}")
+        print(f"\n 训练失败，退出码: {exit_code}")
 
 """
-运行训练结束后，自动删除临时脚本Code02Megatron.py
+运行训练结束后，自动删除临时脚本 Code02Megatron.py
 """
 if os.path.exists('Code02Megatron.py'):
-    print("残留Code02Megatron.py，自动删除。")
+    print("残留 Code02Megatron.py，自动删除。")
     os.remove('Code02Megatron.py')
 ```
 
@@ -1004,7 +1004,7 @@ if os.path.exists('Code02Megatron.py'):
     ============================================================
     Megatron 张量并行验证
     ============================================================
-    GPU数量: 4
+    GPU 数量: 4
     主机名: autodl-container-352c469ce5-0262aef0
     NCCL version 2.21.5+cuda12.4
     
@@ -1019,7 +1019,7 @@ if os.path.exists('Code02Megatron.py'):
     模型配置:
       - Vocab: 1024, Hidden: 512
       - Layers: 8, Heads: 8
-      - 参数量: 5,011,712 (每GPU约 313,232)
+      - 参数量: 5,011,712 (每 GPU 约 313,232)
     
     训练任务: 序列记忆
       - 训练序列数: 100
@@ -1034,7 +1034,7 @@ if os.path.exists('Code02Megatron.py'):
     Epoch 1/5, Step  60/100, Loss: 0.0193, Avg: 2.0979
     Epoch 1/5, Step  80/100, Loss: 0.0129, Avg: 1.5855
     ============================================================
-    Epoch 1 完成 - 平均Loss: 1.2859
+    Epoch 1 完成 - 平均 Loss: 1.2859
     ============================================================
     
     Epoch 2/5, Step   0/100, Loss: 0.0081, Avg: 0.0081
@@ -1043,7 +1043,7 @@ if os.path.exists('Code02Megatron.py'):
     Epoch 2/5, Step  60/100, Loss: 0.0045, Avg: 0.0055
     Epoch 2/5, Step  80/100, Loss: 0.0035, Avg: 0.0051
     ============================================================
-    Epoch 2 完成 - 平均Loss: 0.0047 (↓1.2812)
+    Epoch 2 完成 - 平均 Loss: 0.0047 (↓1.2812)
     ============================================================
     
     Epoch 3/5, Step   0/100, Loss: 0.0032, Avg: 0.0032
@@ -1052,7 +1052,7 @@ if os.path.exists('Code02Megatron.py'):
     Epoch 3/5, Step  60/100, Loss: 0.0025, Avg: 0.0027
     Epoch 3/5, Step  80/100, Loss: 0.0021, Avg: 0.0026
     ============================================================
-    Epoch 3 完成 - 平均Loss: 0.0025 (↓0.0022)
+    Epoch 3 完成 - 平均 Loss: 0.0025 (↓0.0022)
     ============================================================
     
     Epoch 4/5, Step   0/100, Loss: 0.0020, Avg: 0.0020
@@ -1061,7 +1061,7 @@ if os.path.exists('Code02Megatron.py'):
     Epoch 4/5, Step  60/100, Loss: 0.0017, Avg: 0.0018
     Epoch 4/5, Step  80/100, Loss: 0.0014, Avg: 0.0017
     ============================================================
-    Epoch 4 完成 - 平均Loss: 0.0017 (↓0.0008)
+    Epoch 4 完成 - 平均 Loss: 0.0017 (↓0.0008)
     ============================================================
     
     Epoch 5/5, Step   0/100, Loss: 0.0014, Avg: 0.0014
@@ -1070,27 +1070,27 @@ if os.path.exists('Code02Megatron.py'):
     Epoch 5/5, Step  60/100, Loss: 0.0012, Avg: 0.0013
     Epoch 5/5, Step  80/100, Loss: 0.0010, Avg: 0.0012
     ============================================================
-    Epoch 5 完成 - 平均Loss: 0.0012 (↓0.0005)
+    Epoch 5 完成 - 平均 Loss: 0.0012 (↓0.0005)
     ============================================================
     
     
     ============================================================
     ✅ 训练完成!
-       最佳Loss: 0.0012
-       最终Loss: 0.0012
+       最佳 Loss: 0.0012
+       最终 Loss: 0.0012
        峰值显存: 180.30 MB (0.18 GB)
     ============================================================
     
 
-另外，单GPU情况下的训练输出为：
+另外，单 GPU 情况下的训练输出为：
 
 ```
-GPU数量: 1
+GPU 数量: 1
 
 模型配置:
   - Vocab: 1024, Hidden: 512
   - Layers: 8, Heads: 8
-  - 参数量: 18,397,184 (每GPU约 4,599,296)
+  - 参数量: 18,397,184 (每 GPU 约 4,599,296)
 
 训练任务: 序列记忆
   - 训练序列数: 100
@@ -1104,28 +1104,28 @@ Epoch 1/5, Step  20/100, Loss: 2.8188, Avg: 4.6222
 ...
 
 ============================================================
-Epoch 5 完成 - 平均Loss: 0.0013 (↓0.0005)
+Epoch 5 完成 - 平均 Loss: 0.0013 (↓0.0005)
 ============================================================
 
 
 ============================================================
 ✅ 训练完成!
-   最佳Loss: 0.0013
-   最终Loss: 0.0013
+   最佳 Loss: 0.0013
+   最终 Loss: 0.0013
    峰值显存: 407.04 MB (0.40 GB)
 ============================================================
 
 ```
 
-双GPU情况下输出为：
+双 GPU 情况下输出为：
 
 ```
-GPU数量: 2
+GPU 数量: 2
 
 模型配置:
   - Vocab: 1024, Hidden: 512
   - Layers: 8, Heads: 8
-  - 参数量: 9,473,536 (每GPU约 1,184,192)
+  - 参数量: 9,473,536 (每 GPU 约 1,184,192)
 
 训练任务: 序列记忆
   - 训练序列数: 100
@@ -1138,24 +1138,24 @@ Epoch 1/5, Step   0/100, Loss: 7.4521, Avg: 7.4521
 Epoch 1/5, Step  20/100, Loss: 3.0226, Avg: 4.8753
 ...
 ============================================================
-Epoch 5 完成 - 平均Loss: 0.0012 (↓0.0005)
+Epoch 5 完成 - 平均 Loss: 0.0012 (↓0.0005)
 ============================================================
 ============================================================
 ✅ 训练完成!
-   最佳Loss: 0.0012
-   最终Loss: 0.0012
+   最佳 Loss: 0.0012
+   最终 Loss: 0.0012
    峰值显存: 255.88 MB (0.25 GB)
 ============================================================
 ```
 
-四GPU情况下的示例输出：
+四 GPU 情况下的示例输出：
 ```
-GPU数量: 4
+GPU 数量: 4
 
 模型配置:
   - Vocab: 1024, Hidden: 512
   - Layers: 8, Heads: 8
-  - 参数量: 5,011,712 (每GPU约 313,232)
+  - 参数量: 5,011,712 (每 GPU 约 313,232)
 
 训练任务: 序列记忆
   - 训练序列数: 100
@@ -1168,14 +1168,14 @@ Epoch 1/5, Step   0/100, Loss: 7.6181, Avg: 7.6181
 Epoch 1/5, Step  20/100, Loss: 3.1313, Avg: 5.0970
 ...
 ============================================================
-Epoch 5 完成 - 平均Loss: 0.0012 (↓0.0005)
+Epoch 5 完成 - 平均 Loss: 0.0012 (↓0.0005)
 ============================================================
 
 
 ============================================================
 ✅ 训练完成!
-   最佳Loss: 0.0012
-   最终Loss: 0.0012
+   最佳 Loss: 0.0012
+   最终 Loss: 0.0012
    峰值显存: 180.30 MB (0.18 GB)
 ============================================================
 ```
@@ -1194,7 +1194,7 @@ TP 的核心优势是**降低单卡内存占用**。以下是不同情况下的�
 
 **核心技术点**：
 - **列并行线性层**：将权重矩阵按列分割，前向传播需要 All-Gather 操作
-- **行并行线性层**：将权重矩阵按行分割，前向传播使用 AllReduce 聚合（已优化autograd）
+- **行并行线性层**：将权重矩阵按行分割，前向传播使用 AllReduce 聚合（已优化 autograd）
 - **并行 Attention**：将注意力头分布到多个设备，每个设备处理部分头
 - **并行 Embedding**：将大型词汇表分割到多个设备，减少单个设备的内存压力
 

@@ -121,7 +121,7 @@ torchrun --nproc-per-node 8 --nnodes 1 --node_rank 0 --master-addr "localhost" -
 
 其中
 
-> Remark：这一部分我也不是很懂，C的部分要写多深？有点太底层了。 ——陈彦伯
+> Remark：这一部分我也不是很懂，C 的部分要写多深？有点太底层了。 ——陈彦伯
 
 <!-- ### 模块分层与调用路径
 
@@ -281,4 +281,4 @@ Host 下发与 Device 执行是**异步**的：先 Record event，再在目标 S
 - [NCCL 官方文档](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html)
 - https://en.wikipedia.org/wiki/NVLink#Service_software_and_programming
 - https://en.wikipedia.org/wiki/Collective_operation
-- [pytorch中的stream和event](https://yaopepe.com/2025/09/07/distribute/stream_event/)
+- [pytorch 中的 stream 和 event](https://yaopepe.com/2025/09/07/distribute/stream_event/)

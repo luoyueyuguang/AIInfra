@@ -1,6 +1,6 @@
 <!--Copyright © ZOMI 适用于[License](https://github.com/Infrasys-AI/AIInfra)版权许可-->
 
-# 02.计算优化：Flash Attention演进
+# 02.计算优化：Flash Attention 演进
 
 > Author by：桑青园
 

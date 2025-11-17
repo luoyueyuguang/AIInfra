@@ -4,7 +4,7 @@
 
 > Author by: 何晨阳
 
-前文介绍了k8s的主体功能，本节将介绍对k8s的容器监控与日志机制，负责对系统整体运行健康状态的监测。通过监控与日志，可以帮助我们全方位的掌控系统健康状态，更加高效的排查问题。
+前文介绍了 k8s 的主体功能，本节将介绍对 k8s 的容器监控与日志机制，负责对系统整体运行健康状态的监测。通过监控与日志，可以帮助我们全方位的掌控系统健康状态，更加高效的排查问题。
 
 ## 容器监控体系
 
@@ -21,39 +21,39 @@
 
 ### 监控指标
 
-监控数据主要来源于监控对象，在k8s中，监控对象可以分为应用层、Node层、容器层以及k8s对象状态。
+监控数据主要来源于监控对象，在 k8s 中，监控对象可以分为应用层、Node 层、容器层以及 k8s 对象状态。
 
 #### 应用层（Application）
 
 由应用层自定义上传相关监控指标，不同系统的监控指标又各不相同。一些常见的指标如下：
 
-- **延迟**：比如SQL执行延迟，用于识别慢查询、网络瓶颈或代码性能问题。
+- **延迟**：比如 SQL 执行延迟，用于识别慢查询、网络瓶颈或代码性能问题。
 - **流量**：单位时间内的请求量或数据吞吐量，评估负载压力，触发自动扩缩容（HPA）。
 - **错误数**：失败请求数，监控服务异常。
 - **饱和度**：资源利用率接近上限的程度，用于预防资源耗尽导致雪崩效应。
 
-#### Node层指标
+#### Node 层指标
 
-Node层主要关注节点资源使用、健康状态及底层服务运行情况。关注指标主要包括以下：
+Node 层主要关注节点资源使用、健康状态及底层服务运行情况。关注指标主要包括以下：
 
-- CPU 使用率：node_cpu_seconds_total，用于识别CPU过载。
+- CPU 使用率：node_cpu_seconds_total，用于识别 CPU 过载。
 - 内存使用量：node_memory_MemTotal_bytes、node_memory_MemAvailable_bytes。
 - 磁盘 I/O：node_disk_read_bytes_total（读取量）、node_disk_written_bytes_total（写入量）。
-- 网络流量：node_network_receive_bytes_total（接收流量）和node_network_transmit_bytes_total（发送流量）。
+- 网络流量：node_network_receive_bytes_total（接收流量）和 node_network_transmit_bytes_total（发送流量）。
 
 
 #### 容器层指标
 
 容器层关注的指标和 Node 层类似，除了一些基础指标外，还关注一些容器的特有指标：
 
-- 容器CPU使用率：表示容器在单位时间内消耗的CPU资源占其请求（Request）或限制（Limit）的比例，反映计算密集型任务的资源压力。
+- 容器 CPU 使用率：表示容器在单位时间内消耗的 CPU 资源占其请求（Request）或限制（Limit）的比例，反映计算密集型任务的资源压力。
 - 容器内存使用量：容器实际占用的物理内存。
-- 容器重启次数：容器因异常退出（如崩溃、探针失败）而被Kubernetes自动重启的次数，反映应用稳定性。
+- 容器重启次数：容器因异常退出（如崩溃、探针失败）而被 Kubernetes 自动重启的次数，反映应用稳定性。
 - 容器网络流量：包括接收（入站）和发送（出站）的数据量，用于分析应用通信模式及网络性能。
 
 ### 数据采集工具 cAdvisor
 
-cAdvisor 由 Goole 开发的容器监控工具，是Kubernetes生态中容器资源监控的核心组件，默认集成在 kubelet中，专注于实时收集、聚合和展示容器级别的资源使用数据，为容器化提供基础监控能力。
+cAdvisor 由 Goole 开发的容器监控工具，是 Kubernetes 生态中容器资源监控的核心组件，默认集成在 kubelet 中，专注于实时收集、聚合和展示容器级别的资源使用数据，为容器化提供基础监控能力。
 
 #### 主要功能
 
@@ -97,7 +97,7 @@ machine 相关的数据主要读取机器的系统文件数据，然后由一个
 
 #### 核心设计
 
-Prometheus是一款开源的时序数据库与监控告警系统，专为云原生环境设计，已成为Kubernetes生态中监控事实标准。原生的支持对K8S中各个组件进行监控。
+Prometheus 是一款开源的时序数据库与监控告警系统，专为云原生环境设计，已成为 Kubernetes 生态中监控事实标准。原生的支持对 K8S 中各个组件进行监控。
 
 架构图如下所示，主要包括以下几个核心模块：
 
@@ -107,12 +107,12 @@ Prometheus是一款开源的时序数据库与监控告警系统，专为云原�
 - 时序数据库（TSDB）：高效存储时间序列数据。
 - HTTP Server：提供查询接口（PromQL）和 Web UI。
 
-**Exporters**：将第三方系统（如Node Exporter、MySQL Exporter）的指标转换为Prometheus格式。
+**Exporters**：将第三方系统（如 Node Exporter、MySQL Exporter）的指标转换为 Prometheus 格式。
 
 - 节点导出器（Node Exporter）：采集主机资源指标（CPU、内存、磁盘）。
 - 应用导出器（如 JMX Exporter）：将应用指标转换为 Prometheus 格式。
 
-**Pushgateway**：用于接收短期任务推送的指标，供Prometheus拉取。
+**Pushgateway**：用于接收短期任务推送的指标，供 Prometheus 拉取。
 
 - 用于短期任务或批处理作业的指标暂存（Prometheus 默认拉取模型不适用）。
 
@@ -120,9 +120,9 @@ Prometheus是一款开源的时序数据库与监控告警系统，专为云原�
 
 - 处理 Prometheus 的告警通知，支持去重、分组、静默和路由到不同渠道（Email、Slack 等）。
 
-**Client Libraries**：可以作为一个Library集成到应用中，暴露自定义指标。
+**Client Libraries**：可以作为一个 Library 集成到应用中，暴露自定义指标。
 
-比如go接入示例如下所示：
+比如 go 接入示例如下所示：
 ```go
 httpRequests := prometheus.NewCounterVec(
   prometheus.CounterOpts{
@@ -138,7 +138,7 @@ prometheus.MustRegister(httpRequests)
 
 #### 指标类型
 
-Prometheus中主要包括以下几类指标类型：
+Prometheus 中主要包括以下几类指标类型：
 
 - Counter：计数器，单调递增的累计值，比如请求个数等。
 - Gauge：仪表盘，可增可减的瞬时值，如 CPU、内存等。
@@ -207,11 +207,11 @@ groups:
 
 ## 容器日志
 
-日志通常是我们排查问题的一大杀器，在云原生中，容器应用和传统应用的日志管理存在很大区别。本节将介绍k8s中的日志管理方案。
+日志通常是我们排查问题的一大杀器，在云原生中，容器应用和传统应用的日志管理存在很大区别。本节将介绍 k8s 中的日志管理方案。
 
 ### Kubernetes 日志种类
 
-k8s中主要存在两种类型的日志：
+k8s 中主要存在两种类型的日志：
 
 - 集群组件日志：1）运行在容器中的 scheduler、kube-proxy、kube-apiserver 等。2）未运行在容器中的 kubelet 和 runtime 等。
 - Pod 日志

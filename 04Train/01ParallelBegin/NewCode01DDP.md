@@ -4,11 +4,11 @@
 
 > Author by: 于嘉阔
 
-本实验旨在通过一个具体的PyTorch案例，实现、对比并分析分布式数据并行（Distributed Data Parallel, DDP）相对于单卡训练的性能优势。通过本次实验，我们将：
+本实验旨在通过一个具体的 PyTorch 案例，实现、对比并分析分布式数据并行（Distributed Data Parallel, DDP）相对于单卡训练的性能优势。通过本次实验，我们将：
 1.  理解数据并行的基本原理。
-2.  掌握PyTorch DDP的核心实现步骤。
+2.  掌握 PyTorch DDP 的核心实现步骤。
 3.  学习如何对训练过程进行详细的性能分析与可视化。
-4.  量化DDP带来的训练加速比和吞吐量提升。
+4.  量化 DDP 带来的训练加速比和吞吐量提升。
 
 ## 1. DDP 基本原理
 
@@ -17,15 +17,15 @@
 <div align="center">
     <img src="./images/NewCode01DDP01.png" >
     <br>
-    <em>图1：DDP基本原理</em>
+    <em>图 1：DDP 基本原理</em>
 </div>
 
 基本流程如下:
-1.  数据分区: 将完整数据集均匀划分为N个子集（N为参与训练的GPU数量）。
-2.  模型复制: 在每个GPU上都复制一份完整的模型。
-3.  前向传播: 每个GPU使用分配给它的数据子集独立进行前向计算，得到各自的损失。
-4.  反向传播与梯度聚合:每个GPU计算各自的梯度。DDP 后端（如 NCCL）通过All-Reduce操作，将所有GPU上的梯度进行求和（或平均），并将结果分发回每个GPU。
-5.  参数更新: 所有GPU使用完全相同的聚合梯度来更新各自的模型参数，从而保证了训练结束后所有模型的状态是一致的。
+1.  数据分区: 将完整数据集均匀划分为 N 个子集（N 为参与训练的 GPU 数量）。
+2.  模型复制: 在每个 GPU 上都复制一份完整的模型。
+3.  前向传播: 每个 GPU 使用分配给它的数据子集独立进行前向计算，得到各自的损失。
+4.  反向传播与梯度聚合:每个 GPU 计算各自的梯度。DDP 后端（如 NCCL）通过 All-Reduce 操作，将所有 GPU 上的梯度进行求和（或平均），并将结果分发回每个 GPU。
+5.  参数更新: 所有 GPU 使用完全相同的聚合梯度来更新各自的模型参数，从而保证了训练结束后所有模型的状态是一致的。
 
 从数学角度看，假设我们有一个损失函数 $L(w)$，其中 $$w$ 是模型参数。在单卡训练中，我们使用梯度下降更新参数：
 
@@ -66,7 +66,7 @@ from torch.utils.data.distributed import DistributedSampler
 
 # 可视化与辅助库
 import matplotlib
-matplotlib.use('Agg')  # 使用Agg后端，避免在无GUI服务器上出错
+matplotlib.use('Agg')  # 使用 Agg 后端，避免在无 GUI 服务器上出错
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
@@ -85,7 +85,7 @@ if torch.cuda.is_available():
 
 ## 3. 辅助类与数据记录
 
-为了精确地测量和记录训练过程中的各项性能指标，我们定义了两个辅助类：AverageMeter用于计算和存储某个指标（如批处理时间、数据加载时间）的当前值和平均值。TrainingLogger用于在训练过程中，按步数记录损失、准确率、吞吐量和各种时间指标，方便后续进行可视化。
+为了精确地测量和记录训练过程中的各项性能指标，我们定义了两个辅助类：AverageMeter 用于计算和存储某个指标（如批处理时间、数据加载时间）的当前值和平均值。TrainingLogger 用于在训练过程中，按步数记录损失、准确率、吞吐量和各种时间指标，方便后续进行可视化。
 
 
 ```python
@@ -129,12 +129,12 @@ class TrainingLogger(object):
 
 ## 4. 数据集与模型定义
 
-为了更好地体现DDP在计算密集型任务上的优势，我们选择CIFAR-10数据集和ResNet-18模型，并进行了一个关键调整：将输入图像尺寸从32x32放大到224x224。这显著增加了模型的计算负载，使得GPU计算时间成为瓶颈，从而更能凸显多卡并行计算带来的性能提升。
+为了更好地体现 DDP 在计算密集型任务上的优势，我们选择 CIFAR-10 数据集和 ResNet-18 模型，并进行了一个关键调整：将输入图像尺寸从 32x32 放大到 224x224。这显著增加了模型的计算负载，使得 GPU 计算时间成为瓶颈，从而更能凸显多卡并行计算带来的性能提升。
 
 
 ```python
 def get_model():
-    """获取 ResNet18 模型,并调整以适应 CIFAR10 (10分类)"""
+    """获取 ResNet18 模型,并调整以适应 CIFAR10 (10 分类)"""
     model = models.resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features, 10)
     return model
@@ -151,7 +151,7 @@ def get_cifar10_loaders(data_dir='./data', batch_size=128, distributed=False):
     ])
     trainset = torchvision.datasets.CIFAR10(root=data_dir, train=True, download=True, transform=transform)
     
-    # DDP模式下使用 DistributedSampler
+    # DDP 模式下使用 DistributedSampler
     sampler = DistributedSampler(trainset) if distributed else None
     
     # 自动设置合适数量的 num_workers
@@ -167,7 +167,7 @@ def get_cifar10_loaders(data_dir='./data', batch_size=128, distributed=False):
    
 ## 5. DDP 初始化与清理
 
-DDP 训练需要在每个进程开始时初始化进程组，并在结束时销毁它。torchrun会自动设置所需的环境变量（如RANK,WORLD_SIZE），我们只需调用相应函数即可。setup_ddp()用于初始化进程组，指定通信后端，通常为nccl用于GPU。cleanup_ddp()用于销毁进程组，释放资源。
+DDP 训练需要在每个进程开始时初始化进程组，并在结束时销毁它。torchrun 会自动设置所需的环境变量（如 RANK,WORLD_SIZE），我们只需调用相应函数即可。setup_ddp()用于初始化进程组，指定通信后端，通常为 nccl 用于 GPU。cleanup_ddp()用于销毁进程组，释放资源。
 
 
 ```python
@@ -184,13 +184,13 @@ def cleanup_ddp():
 
 ## 6. 核心训练函数
 
-这是实验的核心。我们创建一个统一的train函数，它可以通过is_ddp参数在单卡和DDP模式间切换。函数内部包含了详细的时间测量和日志记录逻辑。
+这是实验的核心。我们创建一个统一的 train 函数，它可以通过 is_ddp 参数在单卡和 DDP 模式间切换。函数内部包含了详细的时间测量和日志记录逻辑。
 
-DDP模式下的关键差异点：
-1. 进程组初始化：在函数开头调用setup_ddp()。
-2. 设备绑定：每个进程（rank）绑定到不同的GPU设备。
-3. 分布式采样器：使用DistributedSampler确保每个进程加载到不重复的数据子集。
-4. 模型封装：将模型用DDP()包装起来，它会自动处理梯度的All-Reduce通信。
+DDP 模式下的关键差异点：
+1. 进程组初始化：在函数开头调用 setup_ddp()。
+2. 设备绑定：每个进程（rank）绑定到不同的 GPU 设备。
+3. 分布式采样器：使用 DistributedSampler 确保每个进程加载到不重复的数据子集。
+4. 模型封装：将模型用 DDP()包装起来，它会自动处理梯度的 All-Reduce 通信。
 5. 分布式日志：只在主进程（rank == 0）进行日志打印和性能记录，避免多进程重复输出。
 
 
@@ -210,7 +210,7 @@ def train(is_ddp, epochs, batch_size, learning_rate):
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("--- [Single-GPU Mode] 开始训练 (使用 ResNet18, 224x224 input) ---")
 
-    # 计算每个GPU的batch size和学习率
+    # 计算每个 GPU 的 batch size 和学习率
     batch_size_per_gpu = batch_size // world_size
     lr = learning_rate * world_size # 学习率随全局批量大小等比例缩放
     if rank == 0:
@@ -238,7 +238,7 @@ def train(is_ddp, epochs, batch_size, learning_rate):
 
     for epoch in range(epochs):
         if is_ddp:
-            sampler.set_epoch(epoch) # 确保每个epoch的shuffle不同
+            sampler.set_epoch(epoch) # 确保每个 epoch 的 shuffle 不同
         
         end = time.time()
         for i, (inputs, labels) in enumerate(trainloader):
@@ -304,7 +304,7 @@ def train(is_ddp, epochs, batch_size, learning_rate):
 
 ## 7. 主函数与实验执行
 
-这是整个实验的入口。我们定义了实验超参数，并通过检查环境变量WORLD_SIZE来判断当前应以DDP模式还是单卡模式运行。训练结束后，结果会通过pickle保存到磁盘，以便后续统一进行对比分析和绘图。
+这是整个实验的入口。我们定义了实验超参数，并通过检查环境变量 WORLD_SIZE 来判断当前应以 DDP 模式还是单卡模式运行。训练结束后，结果会通过 pickle 保存到磁盘，以便后续统一进行对比分析和绘图。
 
 
 ```python
@@ -335,18 +335,18 @@ def main():
 
 ## 8. 执行指令
 
-由于 DDP 的启动依赖于torchrun工具来管理多个进程，直接在Jupyter Notebook单元格中执行DDP训练较为复杂。因此，最佳实践是将以上所有代码整合为一个 Python 脚本（例如ddp_cifar10_final_accurate.py），然后通过命令行来启动实验。
+由于 DDP 的启动依赖于 torchrun 工具来管理多个进程，直接在 Jupyter Notebook 单元格中执行 DDP 训练较为复杂。因此，最佳实践是将以上所有代码整合为一个 Python 脚本（例如 ddp_cifar10_final_accurate.py），然后通过命令行来启动实验。
 
 执行步骤：
 
-1. 保存脚本：将前面所有单元格的代码合并，并保存为ddp_cifar10_final_accurate.py文件。确保主函数调用被 `if __name__ == "__main__":` 包裹。
+1. 保存脚本：将前面所有单元格的代码合并，并保存为 ddp_cifar10_final_accurate.py 文件。确保主函数调用被 `if __name__ == "__main__":` 包裹。
 
 2. 运行单卡基准测试：
     ```bash
     python ddp_cifar10_final_accurate.py
     ```
 
-3. 运行DDP训练(假设使用2个GPU)：
+3. 运行 DDP 训练(假设使用 2 个 GPU)：
     ```bash
     torchrun --nproc_per_node=2 ddp_cifar10_final_accurate.py
     ```
@@ -362,16 +362,16 @@ def main():
 <div align="center">
     <img src="./images/NewCode01DDP02.png" >
     <br>
-    <em>图2：单GPU和DDP性能对比图</em>
+    <em>图 2：单 GPU 和 DDP 性能对比图</em>
 </div>
 
 根据上图，我们可以得出以下结论：
 
-1.  总训练时间 (Total Training Time):单卡模式耗时26.91秒。DDP (2-GPU) 模式耗时15.74秒。DDP 显著减少了总训练时间，**加速比为 26.91 / 15.74 ≈ 1.71x**。这个值接近理论加速比 2x，表明 DDP 在此任务上效率很高，通信开销相对可控。
+1.  总训练时间 (Total Training Time):单卡模式耗时 26.91 秒。DDP (2-GPU) 模式耗时 15.74 秒。DDP 显著减少了总训练时间，**加速比为 26.91 / 15.74 ≈ 1.71x**。这个值接近理论加速比 2x，表明 DDP 在此任务上效率很高，通信开销相对可控。
 
-2.  平均批处理时间 (Average Batch Time):从 **0.2739秒/批次** (单卡) 降低到 **0.1599秒/批次** (DDP)。这与总时间的减少趋势一致，反映了在微观层面每个批次的处理速度都得到了提升。
+2.  平均批处理时间 (Average Batch Time):从 **0.2739 秒/批次** (单卡) 降低到 **0.1599 秒/批次** (DDP)。这与总时间的减少趋势一致，反映了在微观层面每个批次的处理速度都得到了提升。
 
-3.  吞吐量 (Throughput):单卡模式的吞吐量为 **1869.15 张图片/秒**。DDP 模式的吞吐量飙升至 **3202.33 张图片/秒**。吞吐量提升了 **3202.33 / 1869.15 ≈ 1.71倍**，这意味着在相同时间内，DDP 系统能够处理的数据量是单卡系统的 1.71 倍，极大地提升了训练效率。
+3.  吞吐量 (Throughput):单卡模式的吞吐量为 **1869.15 张图片/秒**。DDP 模式的吞吐量飙升至 **3202.33 张图片/秒**。吞吐量提升了 **3202.33 / 1869.15 ≈ 1.71 倍**，这意味着在相同时间内，DDP 系统能够处理的数据量是单卡系统的 1.71 倍，极大地提升了训练效率。
 
 4.  性能增益 (Performance Gain):右下角的图表直观地展示了 **1.71x** 的时间加速比和吞吐量增益，验证了 DDP 带来的显著性能提升。
 
@@ -380,12 +380,12 @@ def main():
 <div align="center">
     <img src="./images/NewCode01DDP03.png" >
     <br>
-    <em>图3：单GPU和DDP时间分解对比图</em>
+    <em>图 3：单 GPU 和 DDP 时间分解对比图</em>
 </div>
 
 为了探究性能提升的来源，我们对训练中每个批次的时间消耗进行了分解：
 
-1.  平均时间分解 (Average Time Breakdown):计算时间 (Computation)从单卡的 **0.2474秒** 大幅降低到 DDP 的 **0.1439秒**。DDP 的计算时间约等于单卡的 **0.1439 / 0.2474 ≈ 0.58** 倍，接近理论上的 0.5 倍，这说明计算任务被有效地分配到了两个 GPU 上并行执行。数据加载时间 (Data Loading)从 **0.0265秒** 降低到 **0.0159秒**。这是因为 DDP 模式下，每个进程（GPU）都有自己独立的DataLoader，它们并行地从磁盘加载和预处理数据，从而也加速了数据准备阶段。
+1.  平均时间分解 (Average Time Breakdown):计算时间 (Computation)从单卡的 **0.2474 秒** 大幅降低到 DDP 的 **0.1439 秒**。DDP 的计算时间约等于单卡的 **0.1439 / 0.2474 ≈ 0.58** 倍，接近理论上的 0.5 倍，这说明计算任务被有效地分配到了两个 GPU 上并行执行。数据加载时间 (Data Loading)从 **0.0265 秒** 降低到 **0.0159 秒**。这是因为 DDP 模式下，每个进程（GPU）都有自己独立的 DataLoader，它们并行地从磁盘加载和预处理数据，从而也加速了数据准备阶段。
 
 2.  时间分布 (Time Distribution):一个非常关键的发现是，无论是单卡还是 DDP 模式，计算时间都占据了总耗时的 90% 左右。这说明我们的实验设置是成功的（通过放大图片尺寸），主要的瓶颈在于 GPU 计算，而非数据 I/O。DDP 在有效分摊计算负载的同时，没有引入过大的通信开销，使得计算密集型的特性得以保持。如果 DDP 模式下数据加载时间占比大幅上升，则可能意味着数据 I/O 成为了新的瓶颈。
 
@@ -393,14 +393,14 @@ def main():
 
 ## 10. 总结与思考
 
-本次实验成功地从零开始构建了一个基于PyTorch DDP的分布式训练流程，并与单卡训练进行了全面的性能对比。
+本次实验成功地从零开始构建了一个基于 PyTorch DDP 的分布式训练流程，并与单卡训练进行了全面的性能对比。
 
 结论：
-1. 在计算密集型任务上，使用DDP(2-GPU)相比单卡训练获得了约1.71x的加速比和吞吐量提升，显著缩短了训练时间。
+1. 在计算密集型任务上，使用 DDP(2-GPU)相比单卡训练获得了约 1.71x 的加速比和吞吐量提升，显著缩短了训练时间。
 2. 性能提升主要源于计算任务的并行化，同时数据加载过程也因多进程并行而受益。
-3. 通过时间分解分析，我们确认了实验的主要瓶颈在于GPU计算，且DDP没有引入显著的通信瓶颈，证明了其高效性。
+3. 通过时间分解分析，我们确认了实验的主要瓶颈在于 GPU 计算，且 DDP 没有引入显著的通信瓶颈，证明了其高效性。
 
 思考与展望：
-1. 实验中我们遵循了"Scale LR"原则，即当全局批量大小增加N倍时，学习率也相应增加N倍。这是分布式训练中一个重要的实践技巧。
+1. 实验中我们遵循了"Scale LR"原则，即当全局批量大小增加 N 倍时，学习率也相应增加 N 倍。这是分布式训练中一个重要的实践技巧。
 2. 虽然本次实验的加速比很高，但在更大规模的集群或网络带宽受限的情况下，梯度同步的通信开销会成为更重要的影响因素。
-3. 掌握DDP是训练大型AI模型的基础。在实际应用中，还需要考虑负载均衡、故障恢复等更复杂的问题，但本实验介绍的原理和方法是进一步学习的重要基石。
+3. 掌握 DDP 是训练大型 AI 模型的基础。在实际应用中，还需要考虑负载均衡、故障恢复等更复杂的问题，但本实验介绍的原理和方法是进一步学习的重要基石。
