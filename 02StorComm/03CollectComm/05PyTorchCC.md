@@ -334,18 +334,61 @@ Host 下发与 Device 执行是**异步**的：先 Record event，再在目标 S
 
 ### 计算流与通信流的同步与内存池归属
 
-!!!!!!!!!!!!!!!!
-你真的懂了吗？
+在 `ProcessGroupXCCL` 中，集合通信接口会经由 `ProcessGroupXCCL::collective()` 把实际的 XCCL 调用 FN 下发到**通信流（xcclStreams）**。如下图所示，如果 OP1 在计算流上写出的输出 Tensor，紧接着在通信流上作为 XCCL1 的输入使用，而两条流之间没有事件依赖，就会出现“OP1 写、XCCL1 读”的潜在竞争——两个异步 stream 会同时访问同一块显存。为了避免这种数据竞争，需要在计算流和通信流之间建立事件同步。PyTorch 的设备内存分配器是 stream-aware 的，会把 Tensor 的生产 stream 记录下来，再结合事件机制保证不同 stream 上的读/写顺序。
 
-在 `ProcessGroupXCCL` 中，集合通信接口会经由 `ProcessGroupXCCL::collective()` 把实际的 XCCL 调用 FN 下发到 **通信流（xcclStreams）**。如下图所示，如果 OP1 的输出 Tensor 仍归属于**计算流的内存池**，会出现“OP1 写、XCCL1 读”的潜在竞争，需要在两条流之间建立事件依赖；需要用于通信的 Tensor，其内存应由对应 Stream 的内存池管理。
+```python
+import torch
+
+compute_stream = torch.cuda.default_stream()     # 计算流
+comm_stream    = torch.cuda.Stream()             # 通信流
+
+x = torch.randn(1024, device="cuda")
+
+# OP1 在计算流上写 tensor
+with torch.cuda.stream(compute_stream):
+    y = op1(x)  # 任意一个会写 y 的算子，比如 y = model(x)
+
+# 错误示例：立刻在通信流上读 y，没有做任何事件同步
+with torch.cuda.stream(comm_stream):
+    xccl_allreduce(y)  # 代表在 XCCL 通信流上发起 collective
+                       # 可能在 OP1 还没写完时就开始读 y
+```
 
 ![05PyTorchCC14](./images/05PyTorchCC14.png)
 
-为解决上述异步问题，`collective()` 内部通过 **`syncStream()`**：在**计算流**上 Record event，并在**通信流**上执行 **notify/wait**，确保“先写后读”，消除并发读写问题。其时序图如下。
+为解决上述异步问题，`collective()` 内部通过 **`syncStream()`**：在**计算流**上 `record` 一个 event，并在**通信流**上对该 event 执行 **`wait_event`**，确保先写后读，消除并发读写问题。
+
+```python
+import torch
+
+compute_stream = torch.cuda.default_stream()
+comm_stream = torch.cuda.Stream()
+ready = torch.cuda.Event(blocking=False)
+
+x = torch.randn(1024, device="cuda")
+
+# 1）在计算流上执行 OP1，并在 OP1 后 record 一个 event
+with torch.cuda.stream(compute_stream):
+    y = op1(x)           # OP1：在 compute_stream 上写 y
+    ready.record()       # 等价于 ready.record(compute_stream)
+
+# 2）在通信流上等待这个 event，然后再发起 XCCL 通信
+comm_stream.wait_event(ready)   # 或者 ready.wait(comm_stream)
+
+with torch.cuda.stream(comm_stream):
+    xccl_allreduce(y)    # XCCL1：此时可以安全地读 y，不会早于 OP1 完成
+```
 
 ![05PyTorchCC15](./images/05PyTorchCC15.png)
 
-反向场景（通信→计算）则由 **`work.wait()`** 完成：`WorkXCCL::synchronizeStreams()` 在需要处进行 block，并依赖于通信流上 `xcclEndEvents_` 记录的事件来完成跨流同步。
+反向场景（通信到计算）则由 **`work.wait()`** 完成：`WorkXCCL::synchronizeStreams()` 在当前计算流上插入一个对通信结束事件 (`xcclEndEvents_`) 的 wait，在需要处进行 block，从而保证“先完成通信，再继续后续计算”。
+
+```python
+work = dist.all_reduce(y, async_op=True)
+# ... 
+work.wait()       # 等价于 WorkXCCL::synchronizeStreams()
+z = op2(y)        # 之后才能安全使用 y
+```
 
 ![05PyTorchCC16](./images/05PyTorchCC16.png)
 
