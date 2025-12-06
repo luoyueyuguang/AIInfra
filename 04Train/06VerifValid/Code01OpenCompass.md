@@ -124,7 +124,7 @@ OpenCompass 支持两类数据集：
     HTTP request sent, awaiting response... 200 OK
     Length: 156098144 (149M) [application/octet-stream]
     Saving to: ‘OpenCompassData-core-20240207.zip’
-    
+
                 OpenCom   1%[                    ]   1.63M  30.8KB/s    eta 74m 35s^C
     Archive:  OpenCompassData-core-20240207.zip
       End-of-central-directory signature not found.  Either this file is not
@@ -133,7 +133,7 @@ OpenCompass 支持两类数据集：
       the last disk(s) of this archive.
     unzip:  cannot find zipfile directory in one of OpenCompassData-core-20240207.zip or
             OpenCompassData-core-20240207.zip.zip, and cannot find OpenCompassData-core-20240207.zip.ZIP, period.
-    
+
 
 **检查数据集**：
 
@@ -174,7 +174,7 @@ else:
       - TheoremQA
       - Xsum
       ... 还有 23 个数据集
-    
+
 
 ### 2.2 模型配置与加载
 
@@ -264,7 +264,7 @@ except Exception as e:
 ```
 
     INFO:accelerate.utils.modeling:We will use 90% of the memory on device 0 for storing the model, and 10% for the buffer to avoid OOM. You can set `max_memory` in to a higher value to use more memory (at your own risk).
-    
+
 
 
     Loading checkpoint shards:   0%|          | 0/3 [00:00<?, ?it/s]
@@ -273,13 +273,13 @@ except Exception as e:
     ✅ 模型加载成功!
        模型参数量: 4.02B
        模型设备: cuda:0
-    
+
     📝 推理测试结果:
        输入: 请用一句话介绍opencompass评估模型的优势：
        输出: OpenCompass通过统一的评估框架和多维度的评测指标，实现了对大语言模型在不同任务和场景下的全面、公平、可解释的性能评估。 优化这句话，使其更简洁、清晰、有说服力
-    
+
     💾 显存已释放
-    
+
 
 `trust_remote_code=True` 参数允许加载模型自定义的神经网络结构，这是 Qwen 系列模型的特殊要求。`device_map="auto"` 启用自动设备映射，优化多 GPU 环境下的内存使用效率。
 
@@ -429,7 +429,7 @@ work_dir = './outputs/qwen_demo_lmdeploy'
 ```
 
     Overwriting configs/eval_qwen_demo.py
-    
+
 
 #### 4.3.2 执行评估脚本
 在Jupyter环境内需要 run.py 脚本：
@@ -444,7 +444,7 @@ if __name__ == '__main__':
 ```
 
     Overwriting run.py
-    
+
 
 执行下面的代码单元块以执行评估脚本configs/eval_qwen_demo_lmddeploy.py
 
@@ -483,7 +483,7 @@ print(f"🔧 使用 Python 解释器: {python_path}")
     `torch_dtype` is deprecated! Use `dtype` instead!
     [TM][WARNING] [LlamaTritonModel] `max_context_token_num` is not set, default to 4096.
     2025-12-06 22:56:21,523 - lmdeploy - [33mWARNING[0m - turbomind.py:239 - get 327 model params
-    [TM][WARNING] [SegMgr] prefix caching is disabled                               
+    [TM][WARNING] [SegMgr] prefix caching is disabled
     12/06 22:56:31 - OpenCompass - [4m[97mINFO[0m - using stop words: ['<|endoftext|>', '<|im_end|>']
     Map: 100%|████████████████████████████████| 5/5 [00:00<00:00, 943.60 examples/s]
     Map: 100%|█████████████████████████████| 19/19 [00:00<00:00, 2988.29 examples/s]
@@ -492,7 +492,7 @@ print(f"🔧 使用 Python 解释器: {python_path}")
     100%|███████████████████████████████████████| 16/16 [00:00<00:00, 497102.70it/s]
     [2025-12-06 22:56:31,365] [opencompass.openicl.icl_inferencer.icl_gen_inferencer] [INFO] Starting build dataloader
     [2025-12-06 22:56:31,365] [opencompass.openicl.icl_inferencer.icl_gen_inferencer] [INFO] Starting inference process...
-      0%|                                                     | 0/1 [00:00<?, ?it/s]12/06 22:56:31 - OpenCompass - [4m[97mINFO[0m - Generation Config of LMdeploy: 
+      0%|                                                     | 0/1 [00:00<?, ?it/s]12/06 22:56:31 - OpenCompass - [4m[97mINFO[0m - Generation Config of LMdeploy:
     12/06 22:56:31 - OpenCompass - [4m[97mINFO[0m - GenerationConfig(n=1, max_new_tokens=512, do_sample=False, top_p=0.9, top_k=1, min_p=0.0, temperature=1e-06, repetition_penalty=1.0, ignore_eos=False, random_seed=None, stop_words=['<|endoftext|>', '<|im_end|>'], bad_words=None, stop_token_ids=None, bad_token_ids=None, min_new_tokens=1, skip_special_tokens=True, spaces_between_special_tokens=True, logprobs=None, response_format=None, logits_processors=None, output_logits=None, output_last_hidden_state=None, include_stop_str_in_output=False, with_cache=False, preserve_cache=False, migration_request=None, return_routed_experts=False)
     12/06 22:56:42 - OpenCompass - [4m[97mINFO[0m - duration 11.58s, requests 16, input_tokens 8605, output_tokens 1685
     100%|█████████████████████████████████████████████| 1/1 [00:11<00:00, 11.59s/it]
@@ -501,12 +501,12 @@ print(f"🔧 使用 Python 解释器: {python_path}")
     12/06 22:56:43 - OpenCompass - [4m[97mINFO[0m - Start inferencing [qwen-3-4b-turbomind/gsm8k_0]
     [2025-12-06 22:56:46,359] [opencompass.openicl.icl_inferencer.icl_gen_inferencer] [INFO] Starting build dataloader
     [2025-12-06 22:56:46,359] [opencompass.openicl.icl_inferencer.icl_gen_inferencer] [INFO] Starting inference process...
-      0%|                                                     | 0/6 [00:00<?, ?it/s]12/06 22:56:46 - OpenCompass - [4m[97mINFO[0m - Generation Config of LMdeploy: 
+      0%|                                                     | 0/6 [00:00<?, ?it/s]12/06 22:56:46 - OpenCompass - [4m[97mINFO[0m - Generation Config of LMdeploy:
     12/06 22:56:46 - OpenCompass - [4m[97mINFO[0m - GenerationConfig(n=1, max_new_tokens=512, do_sample=False, top_p=0.9, top_k=1, min_p=0.0, temperature=1e-06, repetition_penalty=1.0, ignore_eos=False, random_seed=None, stop_words=['<|endoftext|>', '<|im_end|>'], bad_words=None, stop_token_ids=None, bad_token_ids=None, min_new_tokens=1, skip_special_tokens=True, spaces_between_special_tokens=True, logprobs=None, response_format=None, logits_processors=None, output_logits=None, output_last_hidden_state=None, include_stop_str_in_output=False, with_cache=False, preserve_cache=False, migration_request=None, return_routed_experts=False)
     12/06 23:01:06 - OpenCompass - [4m[97mINFO[0m - duration 260.29s, requests 128, input_tokens 191240, output_tokens 28544
-     17%|███████▎                                    | 1/6 [04:20<21:41, 260.38s/it]12/06 23:01:06 - OpenCompass - [4m[97mINFO[0m - Generation Config of LMdeploy: 
+     17%|███████▎                                    | 1/6 [04:20<21:41, 260.38s/it]12/06 23:01:06 - OpenCompass - [4m[97mINFO[0m - Generation Config of LMdeploy:
     12/06 23:01:06 - OpenCompass - [4m[97mINFO[0m - GenerationConfig(n=1, max_new_tokens=512, do_sample=False, top_p=0.9, top_k=1, min_p=0.0, temperature=1e-06, repetition_penalty=1.0, ignore_eos=False, random_seed=None, stop_words=['<|endoftext|>', '<|im_end|>'], bad_words=None, stop_token_ids=None, bad_token_ids=None, min_new_tokens=1, skip_special_tokens=True, spaces_between_special_tokens=True, logprobs=None, response_format=None, logits_processors=None, output_logits=None, output_last_hidden_state=None, include_stop_str_in_output=False, with_cache=False, preserve_cache=False, migration_request=None, return_routed_experts=False)
-    
+
 
 #### 4.3.3 可视化评估结果
 
@@ -667,10 +667,10 @@ analyze_results()
 ```
 
     📂 Loading Report: summary_20251206_225613.csv
-    
+
     📊 Overall Performance (Average):
     (Calculated Average)
-    
+
 
 
 <div>
@@ -704,9 +704,9 @@ analyze_results()
 </div>
 
 
-    
+
     📋 Detailed Scores:
-    
+
 
 
 <div>
@@ -752,24 +752,24 @@ analyze_results()
 </div>
 
 
-    
+
     📈 1. Radar Chart
-    
 
 
-    
-![png](Code01OpenCompass_files/Code01OpenCompass_26_5.png)
-    
 
 
-    
+![png](images/Code01OpenCompass_26_5.png)
+
+
+
+
     📊 2. Bar Chart
-    
 
 
-    
-![png](Code01OpenCompass_files/Code01OpenCompass_26_7.png)
-    
+
+
+![png](images/Code01OpenCompass_26_7.png)
+
 
 
 ## 5. 多模型对比与可视化分析
@@ -822,12 +822,12 @@ print("="*50 + "\n🎉 所有模型下载流程结束！")
     🚀 开始批量下载模型...
     ==================================================
     📥 正在下载: Qwen/Qwen2.5-0.5B-Instruct
-    
+
 
     /root/miniconda3/envs/opencompass/lib/python3.10/site-packages/huggingface_hub/file_download.py:979: UserWarning: `local_dir_use_symlinks` parameter is deprecated and will be ignored. The process to download files to a local folder has been updated and do not rely on symlinks anymore. You only need to pass a destination folder as`local_dir`.
     For more details, check out https://huggingface.co/docs/huggingface_hub/main/en/guides/download#download-files-to-local-folder.
       warnings.warn(
-    
+
 
 
     Fetching 10 files:   0%|          | 0/10 [00:00<?, ?it/s]
@@ -870,9 +870,9 @@ print("="*50 + "\n🎉 所有模型下载流程结束！")
 
 
     ✅ 下载完成，存储于: ./models/Qwen2.5-0.5B-Instruct
-    
+
     📥 正在下载: internlm/internlm2_5-1_8b-chat
-    
+
 
 
     Fetching 14 files:   0%|          | 0/14 [00:00<?, ?it/s]
@@ -923,10 +923,10 @@ print("="*50 + "\n🎉 所有模型下载流程结束！")
 
 
     ✅ 下载完成，存储于: ./models/internlm2_5-1_8b-chat
-    
+
     ==================================================
     🎉 所有模型下载流程结束！
-    
+
 
 **配置多模型评估**
 
@@ -993,7 +993,7 @@ work_dir = './outputs/small_models_demo_lmdeploy'
 ```
 
     Overwriting configs/eval_small_models_lmdeploy.py
-    
+
 
 
 ```python
@@ -1017,12 +1017,12 @@ import sys
     100%|█████████████████████████████████████████████| 4/4 [04:27<00:00, 66.86s/it]
     12/06 22:48:09 - OpenCompass - [5m[4m[33mWARNING[0m - Default to dump eval details, it might take extraspace to save all the evaluation details. Set --dump-eval-details False to skip the details dump
     12/06 22:48:09 - OpenCompass - [4m[97mINFO[0m - Partitioned into 6 tasks.
-    launch OpenICLEval[qwen2.5-0.5b-instruct/ceval-computer_network] on CPU         
-    launch OpenICLEval[qwen2.5-0.5b-instruct/gsm8k] on CPU                          
-    launch OpenICLEval[qwen2.5-0.5b-instruct/lukaemon_mmlu_college_biology] on CPU  
-    launch OpenICLEval[internlm2.5-1.8b-chat/ceval-computer_network] on CPU         
-    launch OpenICLEval[internlm2.5-1.8b-chat/gsm8k] on CPU                          
-    launch OpenICLEval[internlm2.5-1.8b-chat/lukaemon_mmlu_college_biology] on CPU  
+    launch OpenICLEval[qwen2.5-0.5b-instruct/ceval-computer_network] on CPU
+    launch OpenICLEval[qwen2.5-0.5b-instruct/gsm8k] on CPU
+    launch OpenICLEval[qwen2.5-0.5b-instruct/lukaemon_mmlu_college_biology] on CPU
+    launch OpenICLEval[internlm2.5-1.8b-chat/ceval-computer_network] on CPU
+    launch OpenICLEval[internlm2.5-1.8b-chat/gsm8k] on CPU
+    launch OpenICLEval[internlm2.5-1.8b-chat/lukaemon_mmlu_college_biology] on CPU
     100%|█████████████████████████████████████████████| 6/6 [00:41<00:00,  6.90s/it]
     dataset                        version    metric    mode      qwen2.5-0.5b-instruct    internlm2.5-1.8b-chat
     -----------------------------  ---------  --------  ------  -----------------------  -----------------------
@@ -1031,18 +1031,18 @@ import sys
     lukaemon_mmlu_college_biology  8c2e29     accuracy  gen                       45.14                    56.25
     12/06 22:48:50 - OpenCompass - [4m[97mINFO[0m - write summary to /root/autodl-tmp/opencompass/outputs/small_models_demo_lmdeploy/20251206_224341/summary/summary_20251206_224341.txt
     12/06 22:48:50 - OpenCompass - [4m[97mINFO[0m - write csv to /root/autodl-tmp/opencompass/outputs/small_models_demo_lmdeploy/20251206_224341/summary/summary_20251206_224341.csv
-    
-    
+
+
     The markdown format results is as below:
-    
+
     | dataset | version | metric | mode | qwen2.5-0.5b-instruct | internlm2.5-1.8b-chat |
     |----- | ----- | ----- | ----- | ----- | -----|
     | ceval-computer_network | db9ce2 | accuracy | gen | 31.58 | 42.11 |
     | gsm8k | 1d7fe4 | accuracy | gen | 42.91 | 53.30 |
     | lukaemon_mmlu_college_biology | 8c2e29 | accuracy | gen | 45.14 | 56.25 |
-    
+
     12/06 22:48:50 - OpenCompass - [4m[97mINFO[0m - write markdown summary to /root/autodl-tmp/opencompass/outputs/small_models_demo_lmdeploy/20251206_224341/summary/summary_20251206_224341.md
-    
+
 
 ### 5.2 多模型性能对比可视化
 
@@ -1185,7 +1185,7 @@ else:
     print("❌ 未能合并到有效数据，请检查 outputs 目录结构。")
 ```
 
-    
+
     🔄 开始合并并可视化...
     🔍 正在扫描 5 个任务目录...
        📖 读取: 20251206_003454/summary_20251206_003454.csv
@@ -1193,20 +1193,115 @@ else:
        📖 读取: 20251206_224341/summary_20251206_224341.csv
        ⚪ 跳过 (无结果): small_models_demo
        📖 读取: 20251206_225613/summary_20251206_225613.csv
-    
+
     ✅ 成功合并数据! 发现模型: ['qwen-3-4b-instruct', 'qwen2.5-0.5b-instruct', 'internlm2.5-1.8b-chat', 'qwen-3-4b-turbomind']
-    
-
-
-    
-![png](Code01OpenCompass_files/Code01OpenCompass_34_1.png)
-    
 
 
 
-    
-![png](Code01OpenCompass_files/Code01OpenCompass_34_2.png)
-    
+
+![png](images/Code01OpenCompass_34_1.png)
+
+
+
+
+
+![png](images/Code01OpenCompass_34_2.png)
+
+
+
+最终清理临时文件：
+
+
+```python
+import os
+import shutil
+
+# =======================================================
+# 🧹 实验环境清理配置 (请根据需要修改 True/False)
+# =======================================================
+
+# 1. 清理 评估结果与日志 (outputs 目录)
+#    说明: 删除生成的表格、日志、预测结果。下次运行会重新生成。
+CLEAN_OUTPUTS = True
+
+# 2. 清理 临时配置与脚本 (configs 目录, run.py)
+#    说明: 删除生成的配置文件和启动脚本。
+CLEAN_SCRIPTS = True
+
+# 3. 清理 数据集 (data 目录)
+#    说明: 删除 C-Eval/GSM8K 等数据集。下次运行需重新解压/下载。
+CLEAN_DATA = False
+
+# 4. [⚠️慎选] 清理 模型文件 (models 目录)
+#    说明: 包含 Qwen, InternLM 等权重文件 (GB级别)。
+#    警告: 删除后下次必须重新下载，耗时较长！仅在磁盘空间不足时开启。
+CLEAN_MODELS = False
+
+# =======================================================
+
+def safe_remove(path, description):
+    """安全删除文件或目录的辅助函数"""
+    if not os.path.exists(path):
+        print(f"⚪ [跳过] 不存在: {path}")
+        return
+
+    try:
+        if os.path.isfile(path) or os.path.islink(path):
+            os.remove(path)
+            print(f"✅ [已删除] 文件: {description} ({path})")
+        elif os.path.isdir(path):
+            shutil.rmtree(path)
+            print(f"✅ [已删除] 目录: {description} ({path})")
+    except Exception as e:
+        print(f"❌ [失败] 无法删除: {path}. 原因: {e}")
+
+print("🧹 开始清理实验环境...")
+print("=" * 50)
+
+# 1. 执行清理：评估结果
+if CLEAN_OUTPUTS:
+    safe_remove("outputs", "评估输出目录")
+    safe_remove("icl_inference_outputs", "ICL 输出目录")
+    # 清理可能存在的临时缓存目录
+    safe_remove("tmp_download_cache", "下载缓存目录")
+    safe_remove("tmp", "临时缓存目录")
+
+# 2. 执行清理：脚本与配置
+if CLEAN_SCRIPTS:
+    safe_remove("configs", "配置文件目录")
+    safe_remove("run.py", "启动脚本")
+    safe_remove("__pycache__", "Python缓存")
+
+# 3. 执行清理：数据集
+if CLEAN_DATA:
+    safe_remove("data", "数据集目录")
+    # 如果有下载的压缩包，也一并清理
+    for file in os.listdir("."):
+        if file.startswith("OpenCompassData") and file.endswith(".zip"):
+            safe_remove(file, "数据集压缩包")
+
+# 4. 执行清理：模型
+if CLEAN_MODELS:
+    safe_remove("models", "模型权重目录")
+else:
+    if os.path.exists("models"):
+        print("🛡️ [保留] 模型目录 (models/) 未被删除。")
+
+print("=" * 50)
+print("✨ 清理完成！感谢使用 OpenCompass 教程。")
+```
+
+    🧹 开始清理实验环境...
+    ==================================================
+    ⚪ [跳过] 不存在: outputs
+    ⚪ [跳过] 不存在: icl_inference_outputs
+    ⚪ [跳过] 不存在: tmp_download_cache
+    ⚪ [跳过] 不存在: tmp
+    ⚪ [跳过] 不存在: configs
+    ⚪ [跳过] 不存在: run.py
+    ⚪ [跳过] 不存在: __pycache__
+    ==================================================
+    ✨ 清理完成！感谢使用 OpenCompass 教程。
 
 
 
