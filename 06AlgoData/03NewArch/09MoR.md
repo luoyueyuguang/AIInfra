@@ -1,6 +1,6 @@
 <!--Copyright © ZOMI 适用于[License](https://github.com/Infrasys-AI/AIInfra)版权许可-->
 
-# 未来之路：Transformer瓶颈突破方向
+# 未来之路：Transformer 瓶颈突破方向
 
 > Author by: 张嘉瑶
 
@@ -43,7 +43,7 @@ Flash Attention 已被近乎普遍采用。PyTorch 2.2+ 包含原生支持，并
 
 <div align="center">
   <img src="./images/deepseek.jpg" alt="img" />
-  <figcaption><strong>DeepSeek-V3及其同类产品的基准性能</strong></figcaption>
+  <figcaption><strong>DeepSeek-V3 及其同类产品的基准性能</strong></figcaption>
 </div>
 
 
@@ -53,7 +53,7 @@ Flash Attention 已被近乎普遍采用。PyTorch 2.2+ 包含原生支持，并
 
 <div align="center">
   <img src="./images/KVQuant.jpg" alt="img" />
-  <figcaption><strong>KVQuant中所使用的不同组件概述，这些组件在将LLaMA-7B模型的KV缓存量化至3位精度时，相较于fp16基准，能使困惑度下降控制在0.1以内。</strong></figcaption>
+  <figcaption><strong>KVQuant 中所使用的不同组件概述，这些组件在将 LLaMA-7B 模型的 KV 缓存量化至 3 位精度时，相较于 fp16 基准，能使困惑度下降控制在 0.1 以内。</strong></figcaption>
 </div>
 
 
@@ -90,7 +90,7 @@ AI21 的消融研究揭示了关键的洞见。1:7 的注意力:Mamba 比例被�
 
 <div align="center">
   <img src="./images/Jamba.jpg" alt="img" />
-  <figcaption><strong>（a）单个Jamba块。（b）不同类型的层。此处展示的实现中，l=8，注意力层与Mamba层的比例为a:m=1:7，且每e=2层应用一次MoE。</strong></figcaption>
+  <figcaption><strong>（a）单个 Jamba 块。（b）不同类型的层。此处展示的实现中，l=8，注意力层与 Mamba 层的比例为 a:m=1:7，且每 e=2 层应用一次 MoE。</strong></figcaption>
 </div>
 
 
@@ -115,7 +115,7 @@ Mistral AI 于 2023 年 12 月发布的 Mixtral 8x7B，推动了开源 MoE 的�
 
 <div align="center">
   <img src="./images/DeepSeekmoe.jpg" alt="img" />
-  <figcaption><strong>DeepSeekMoE 16B与开源模型在Open LLM排行榜上的对比。</strong></figcaption>
+  <figcaption><strong>DeepSeekMoE 16B 与开源模型在 Open LLM 排行榜上的对比。</strong></figcaption>
 </div>
 
 
@@ -126,7 +126,7 @@ FP8 训练已成为 2024-2025 年的主导精度格式，这得益于 Hopper 架
 
 生产部署验证了这种方法。Adobe Firefly 通过部署 FP8 实现了 60% 的延迟降低和 40% 的总拥有成本降低。iGenius 使用 FP8 训练 Colosseum 355B 达到了 82% 的 MMLU 准确率，证明了前沿规模的模型可以在降低的精度下进行训练。即将到来的 Blackwell 架构引入了具有块级缩放 (block-level scaling) 的 MXFP8，以改善异常值处理，而实验性的 NVFP4（4 位浮点数） 采用 E2M1 格式，有望实现 8 倍的缩减，尽管实用的训练方案仍待 2025 年开发。
 
-训练后量化 (Post-training quantization) 实现了高效部署。GPTQ 使用 Hessian 信息执行逐层权重 量化，实现了4 位量化，准确率损失 <1%，内存缩减 4 倍。AWQ（激活感知权重 量化） 保护了由激活幅度确定的约 0.1-1% 最显著的权重，通常在相同位宽下提供比 GPTQ 更好的质量，且推理速度更快。AutoGPTQ 和 GPTQModel 等工具使这些技术易于获取，而 vLLM 等框架也原生支持它们。结合 KV 缓存量化，总内存需求可以降至原始模型的 5-10%，同时保持 95% 以上的原始质量。
+训练后量化 (Post-training quantization) 实现了高效部署。GPTQ 使用 Hessian 信息执行逐层权重 量化，实现了 4 位量化，准确率损失 <1%，内存缩减 4 倍。AWQ（激活感知权重 量化） 保护了由激活幅度确定的约 0.1-1% 最显著的权重，通常在相同位宽下提供比 GPTQ 更好的质量，且推理速度更快。AutoGPTQ 和 GPTQModel 等工具使这些技术易于获取，而 vLLM 等框架也原生支持它们。结合 KV 缓存量化，总内存需求可以降至原始模型的 5-10%，同时保持 95% 以上的原始质量。
 
 Zero Redundancy Optimizer (ZeRO) 和 Fully Sharded Data Parallel (FSDP) 通过高内存效率的分布式训练，实现了前所未有的规模。ZeRO Stage 3 将参数、梯度和优化器状态分片到所有 GPU 上，实现了 N 倍的内存缩减（N 为 GPU 数量）。FSDP 目前在 PyTorch 中已经成熟，已成功训练了 1 万亿参数的模型，GPT-1T 达到了 84 TFLOPS/A100，GPT-175B 达到了 159 TFLOPS。混合分片策略——节点内完全分片，节点间复制——优化了内存与通信的权衡。
 
@@ -135,7 +135,7 @@ Zero Bubble Pipeline（零气泡流水线）于 2024 年引入并在 DeepSeek-V3
 
 <div align="center">
   <img src="./images/DeepSeekv3.jpg" alt="img" />
-  <figcaption><strong>DeepSeek-V3基本架构示意图。继DeepSeek-V2之后，采用了MLA和DeepSeekMoE，以实现高效推理和经济的训练。</strong></figcaption>
+  <figcaption><strong>DeepSeek-V3 基本架构示意图。继 DeepSeek-V2 之后，采用了 MLA 和 DeepSeekMoE，以实现高效推理和经济的训练。</strong></figcaption>
 </div>
 
 
@@ -146,7 +146,7 @@ Zero Bubble Pipeline（零气泡流水线）于 2024 年引入并在 DeepSeek-V3
 Ring Attention 于 2023 年 10 月发表，并被 ICLR 2024 接收，它通过巧妙的分布方式，实现了在远超单设备内存的序列上进行精确的注意力计算。该技术将长序列分布在环形拓扑中的多个设备上，执行自注意力的分块计算，同时在设备之间以循环方式传递键值块。通信与分块注意力计算完全重叠，除了块传递之外没有引入额外开销。Ring Attention 成功演示了百万 token 序列，并使大型世界模型 (Large World Model, LWM) 能够处理视频和长文档而无需截断。
 
 
-Striped Attention 于 2023 年 11 月提出，它通过解决因果 Transformer 中的工作负载不平衡问题，改进了 Ring Attention。因果掩码创建了一个三角形计算模式，其中较晚的 token 会关注更多先前的 token，当块被连续分配时会导致负载不平衡。条带分布 (Striped distribution) 以循环方式 (round-robin) 在设备间分配 token，更均匀地平衡了工作负载，在 A100 GPU 上（256K 序列）实现了比 Ring Attention 快 1.45 倍的加速，在 16 个 TPUv4 芯片上（786K 序列）实现了1.65 倍的加速。
+Striped Attention 于 2023 年 11 月提出，它通过解决因果 Transformer 中的工作负载不平衡问题，改进了 Ring Attention。因果掩码创建了一个三角形计算模式，其中较晚的 token 会关注更多先前的 token，当块被连续分配时会导致负载不平衡。条带分布 (Striped distribution) 以循环方式 (round-robin) 在设备间分配 token，更均匀地平衡了工作负载，在 A100 GPU 上（256K 序列）实现了比 Ring Attention 快 1.45 倍的加速，在 16 个 TPUv4 芯片上（786K 序列）实现了 1.65 倍的加速。
 
 
 
@@ -245,11 +245,11 @@ Anthropic 的 Dario Amodei 预测 AGI 可能会在 2030 年之前出现，他表
 
 2024-2025 年标志着从架构单一主义 (monism) 到多元主义 (pluralism) 的真正范式转变。虽然 Transformer 在前沿领域保持着王冠，但替代方案已在注重效率的部署中证明了其在生产规模上的可行性。Mamba 部署到 15 亿台设备，DeepSeek-V3 以不到 600 万美元的训练成本达到了 GPT-4 的性能水平，以及混合架构始终优于纯粹方法，这些都表明 Transformer 的主导地位是情境性的，而非绝对的。
 
-未来不是单一的制胜架构，而是一个专业化解决方案的生态系统。对于需要复杂推理和精确召回，且计算成本次于能力的任务，纯 Transformer 仍然是最佳选择。对于极端效率和超长上下文，且可接受一定召回损失的场景，纯 SSM 则表现出色。像Mixture-of-Recursions 这样的混合架构代表了大多数应用的“甜点”，它们结合了优势，同时缓解了劣势。新兴的架构混合 (Mixture of Architectures) 范式将使系统能够根据任务需求在不同原语之间进行路由，从而在多样化的工作负载中实现最优。
+未来不是单一的制胜架构，而是一个专业化解决方案的生态系统。对于需要复杂推理和精确召回，且计算成本次于能力的任务，纯 Transformer 仍然是最佳选择。对于极端效率和超长上下文，且可接受一定召回损失的场景，纯 SSM 则表现出色。像 Mixture-of-Recursions 这样的混合架构代表了大多数应用的“甜点”，它们结合了优势，同时缓解了劣势。新兴的架构混合 (Mixture of Architectures) 范式将使系统能够根据任务需求在不同原语之间进行路由，从而在多样化的工作负载中实现最优。
 
 
 <div align="center">
-  <figcaption><strong>如下图所示，MoR引入了一个统一的框架，直接解决了键值缓存缺失和批量推理的问题。通过一个高效的端到端训练路由机制实现了这一点，该机制能够动态地为每个词元分配最佳递归深度。此外，还引入了一种递归级键值缓存策略，该策略选择性地存储键值对，在解决缓存缺失问题的同时优化了内存使用。与标准Transformer相比，在相似的准确率下，推理吞吐量提高了2倍，同时还降低了总训练浮点运算次数和内存需求。</strong></figcaption>
+  <figcaption><strong>如下图所示，MoR 引入了一个统一的框架，直接解决了键值缓存缺失和批量推理的问题。通过一个高效的端到端训练路由机制实现了这一点，该机制能够动态地为每个词元分配最佳递归深度。此外，还引入了一种递归级键值缓存策略，该策略选择性地存储键值对，在解决缓存缺失问题的同时优化了内存使用。与标准 Transformer 相比，在相似的准确率下，推理吞吐量提高了 2 倍，同时还降低了总训练浮点运算次数和内存需求。</strong></figcaption>
   <img src="./images/mor_fig1.png" alt="img" />
 </div>
 

@@ -244,7 +244,7 @@ print(f"FP16 - 总推理时间: {total_time_fp16:.2f}秒, "
 
 
     开始评估 FP16 模型...
-    FP16 - 总推理时间: 0.83秒, 平均每个样本: 0.0065秒, 准确率: 0.0312
+    FP16 - 总推理时间: 0.83 秒, 平均每个样本: 0.0065 秒, 准确率: 0.0312
 
 FP16 之所以被广泛用作基线，是因为它在精度损失相对较小的情况下，能显著提升推理速度并减少内存占用。对于大多数模型，从 FP32 转为 FP16 不会导致明显的精度下降，但能带来约 2 倍的性能提升。
 
@@ -286,7 +286,7 @@ print(f"INT8 - 总推理时间: {total_time_int8:.2f}秒, "
 
 
     开始评估 INT8 模型...
-    INT8 - 总推理时间: 2.55秒, 平均每个样本: 0.0199秒, 准确率: 0.0312
+    INT8 - 总推理时间: 2.55 秒, 平均每个样本: 0.0199 秒, 准确率: 0.0312
 
 ### 理论分析 - LLM.int8()
 
@@ -300,12 +300,12 @@ $$ x_{int8} = \text{clip}(\text{round}(x_{float} / s + 127), 0, 255) $$
 
 ### 源码阅读 - LLM.int8()
 
-为了更形象的了解LLM.int8()，我找出了其中[源码](https://github.com/bitsandbytes-foundation/bitsandbytes)的部分。由于需要解读的内容比较多，我单独放在了`./LLM.int8()源码阅读`下。
+为了更形象的了解 LLM.int8()，我找出了其中[源码](https://github.com/bitsandbytes-foundation/bitsandbytes)的部分。由于需要解读的内容比较多，我单独放在了`./LLM.int8()源码阅读`下。
 
 ## 7. FP8 精度实验
 
 FP8 是一种较新的低精度浮点格式，相比 FP16 进一步减少了位数，但保留了浮点数的动态范围优势。
-更具体的，在使用FP8量化前，我们应该先将模型转换成Transformer Engine（TE）的形式以来支持FP8（E4M3 / E5M2）的算子，并且由于H100（Hopper）硬件对 BF16 有很好的支持。可以有接近FP16的速度并且更加稳定，因此我们推荐先将模型转为BF16格式
+更具体的，在使用 FP8 量化前，我们应该先将模型转换成 Transformer Engine（TE）的形式以来支持 FP8（E4M3 / E5M2）的算子，并且由于 H100（Hopper）硬件对 BF16 有很好的支持。可以有接近 FP16 的速度并且更加稳定，因此我们推荐先将模型转为 BF16 格式
 
 ```python
 import torch
@@ -342,7 +342,7 @@ model_te = model_bf16
 assert has_transformer_engine_layers(model_te), "TE 层替换失败"
 
 
-# 2) 定义 FP8 配方（HYBRID=前向E4M3，反向E5M2；纯推理时只会用到前向E4M3）
+# 2) 定义 FP8 配方（HYBRID=前向 E4M3，反向 E5M2；纯推理时只会用到前向 E4M3）
 fp8_recipe = te_recipe.DelayedScaling(
     fp8_format=Format.HYBRID,
     amax_history_len=16,
@@ -392,7 +392,7 @@ fp8_recipe = te_recipe.DelayedScaling(
 )
 ```
 
-比如这里，设 Format.HYBRID，那么 forward 用 E4M3，backward 用 E5M2（以适应梯度阶段对动态范围更大的需求），如果你设 fp8_format = Format.E4M3，那么forward 和 backward中的所有 FP8 张量／算子都用 E4M3 格式。
+比如这里，设 Format.HYBRID，那么 forward 用 E4M3，backward 用 E5M2（以适应梯度阶段对动态范围更大的需求），如果你设 fp8_format = Format.E4M3，那么 forward 和 backward 中的所有 FP8 张量／算子都用 E4M3 格式。
 
 ## 8. FP6 精度实验
 
@@ -442,7 +442,7 @@ print(f"FP6 - 总推理时间: {total_time_fp6:.2f}秒, "
 
 
     开始评估 FP6 模型...
-    FP6 - 总推理时间: 0.63秒, 平均每个样本: 0.0049秒, 准确率: 0.0312
+    FP6 - 总推理时间: 0.63 秒, 平均每个样本: 0.0049 秒, 准确率: 0.0312
 
 注意：上面的 FP6 量化是一个简化实现。在实际应用中，FP6 的实现会更复杂，通常采用 E2M3（2 位指数，3 位尾数）的格式。由于 FP6 的表示能力有限，它通常只用于对精度要求不高的场景，或者作为研究探索。
 

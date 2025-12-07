@@ -37,21 +37,21 @@ Author by: 汪袁烁
 
 ## motivation
 
-### 关于token延迟
+### 关于 token 延迟
 
-我们知道，对于输入的多个句子我们会对其叠成batch然后输入，维度为[batchsize, seq_len]。那么在一次完整的前向传播（prefill + decode）中，究竟什么对于每个token平均生成延迟影响大呢。
+我们知道，对于输入的多个句子我们会对其叠成 batch 然后输入，维度为[batchsize, seq_len]。那么在一次完整的前向传播（prefill + decode）中，究竟什么对于每个 token 平均生成延迟影响大呢。
 
 ![](./images/05%20TokenLatency.png)
 
 
 
-该实验的图可以清晰的看到，叠的batch的形状对平均生成没有显著影响，关键影响的参数是token的数量（bathchsize * seq_len）。换言之，forward pass 的性能瓶颈主要由 总 token 数（tokens_in_forward） 决定，而不是 batch 内的序列数。
+该实验的图可以清晰的看到，叠的 batch 的形状对平均生成没有显著影响，关键影响的参数是 token 的数量（bathchsize * seq_len）。换言之，forward pass 的性能瓶颈主要由 总 token 数（tokens_in_forward） 决定，而不是 batch 内的序列数。
 
-我们知道，Prefill 阶段是大 token 数的 batch，Decode 是小 token 数的 batch。因此对于我们的启示是调度器只需统一以 “forward tokens” 为核心指标，因为它们本质对于性能的影响参数可以统一为forward token数量。
+我们知道，Prefill 阶段是大 token 数的 batch，Decode 是小 token 数的 batch。因此对于我们的启示是调度器只需统一以 “forward tokens” 为核心指标，因为它们本质对于性能的影响参数可以统一为 forward token 数量。
 
 ### LLM 推理吞吐量随 forward tokens 数变化的规律
 
-刚刚我们发现forward tokens是影响每个token处理延迟的核心，那么它是如何影响LLM推理的吞吐量的呢？
+刚刚我们发现 forward tokens 是影响每个 token 处理延迟的核心，那么它是如何影响 LLM 推理的吞吐量的呢？
 
 ![](.images/05 forwardtokens_TFLOPS.png)
 
@@ -59,7 +59,7 @@ Author by: 汪袁烁
 
 - Token 数较大时（右半段）：吞吐量趋于饱和，维持在一个稳定值；此时 GPU 计算单元满负载运行，系统进入 throughput saturation region（吞吐饱和区）；此后再增加 tokens，也不会显著提升性能。
 
-我们可以得到启示，Prefill 阶段由于输入token数量多自然处于饱和区，为了保持Decode阶段处于饱和区，可以通过动态融合提升利用率。
+我们可以得到启示，Prefill 阶段由于输入 token 数量多自然处于饱和区，为了保持 Decode 阶段处于饱和区，可以通过动态融合提升利用率。
 
 
 
@@ -69,15 +69,15 @@ Author by: 汪袁烁
 
 ### 设计原理 - 数学分析
 
-根据上述motivation，我们可以尝试设计一个调度器来保持Prefill和Decode两个阶段保持在最佳状态。上述图的曲线是一个凸函数，根据数学公式：
+根据上述 motivation，我们可以尝试设计一个调度器来保持 Prefill 和 Decode 两个阶段保持在最佳状态。上述图的曲线是一个凸函数，根据数学公式：
 $$
 0 \geq \lim _{h \rightarrow 0} \frac{f(x+h)-2 f(x)+f(x-h)}{h^2} \quad \Rightarrow \quad 2 f(x) \geq f(x+h)+f(x-h)
 $$
-用这个不等式推理，我们令h = 0：
+用这个不等式推理，我们令 h = 0：
 $$
 f(2 x) \leq 2 f(x)
 $$
-这意味着若有一组 tokens 总量是 2x，最优的做法不是一次性把 2x 全部投入一个batch而是将它们分成两个大小为 x 的批次分别执行。
+这意味着若有一组 tokens 总量是 2x，最优的做法不是一次性把 2x 全部投入一个 batch 而是将它们分成两个大小为 x 的批次分别执行。
 
 更一般的，凸优化中这个定理可以进一步推广，因此我们可以知道：对于一个待处理的总 token 池 P，若系统可以执行 F 次 forward pass 来处理这 P 个 token，那么要最大化总体吞吐量（或平均 throughput），最优做法是 将这 P 个 token 平分到 F 次 forward，即每次用 P/F 个 token。来得到最大吞吐量的效果。
 
@@ -89,7 +89,7 @@ $$
 - **对于长 prompt 或长 token 流，应将其切成若干段（chunk）调度到多个 forward**；
 - **在多请求并发场景下，应把不同请求的 token 池合并后 “均匀分配” 给每次 forward**；
 
-那么根据这个结论，我们就可以设计出FastGen的核心技术 - DynamicSplitFuse调度策略了
+那么根据这个结论，我们就可以设计出 FastGen 的核心技术 - DynamicSplitFuse 调度策略了
 
 ### 核心思想
 
@@ -109,17 +109,17 @@ $$
 
 ### 联想和思考
 
-这时候你可能会问，这个不就是`./PD分离`一文中提出的**chunked prefill**思想吗？没错！FastGen的原论文：
+这时候你可能会问，这个不就是`./PD 分离`一文中提出的**chunked prefill**思想吗？没错！FastGen 的原论文：
 
 >A similar approach has been proposed in Sarathi[11] where it splits a prompt
 >into smaller chunks to combine more token generation with prompt processing and to run
 >forward passes with consistent batch sizes. 
 
-明确表示借鉴了*Sarathi*的chunked prefill。也即把长序列的prefill和decode利用底层算子的特性融合起来，宏观来看，长序列的prefill貌似被chunked成多份了，但是微观的算子层面，decode阶段仍然可以看到整体的prefill的KV Cahce。
+明确表示借鉴了*Sarathi*的 chunked prefill。也即把长序列的 prefill 和 decode 利用底层算子的特性融合起来，宏观来看，长序列的 prefill 貌似被 chunked 成多份了，但是微观的算子层面，decode 阶段仍然可以看到整体的 prefill 的 KV Cahce。
 
 ##  Implementation and Usage
 
-前面分析了那么多，对于用户层面而言，我们可能更关心它暴露的上层API以及我们如何使用它们：
+前面分析了那么多，对于用户层面而言，我们可能更关心它暴露的上层 API 以及我们如何使用它们：
 
 ![](/images/05FastGenUse.png)
 

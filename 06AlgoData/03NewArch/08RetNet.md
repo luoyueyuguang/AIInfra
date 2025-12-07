@@ -13,7 +13,7 @@
 
 1. 高效的训练并行性 (Training Parallelism)：充分利用现代硬件（如 GPU）的大规模并行计算能力进行快速训练。
 2. 低成本的推理 (Low-Cost Inference)：在生成序列时，每个步骤的计算和内存复杂度应尽可能低，理想情况下为 $O(1)$。
-3. 强大的模型性能 (Strong Performance)：在各种任务和基准上，至少能媲美甚至超越现有SOTA（State-of-the-Art）架构（即 Transformer）的性能和扩展性。
+3. 强大的模型性能 (Strong Performance)：在各种任务和基准上，至少能媲美甚至超越现有 SOTA（State-of-the-Art）架构（即 Transformer）的性能和扩展性。
 
 现有的主流架构往往只能满足其中的两项：
 
@@ -26,7 +26,7 @@ Retentive Network（RetNet） 正是为解决这一根本矛盾而提出的。�
 
 <div align="center">
   <img src="./images/retnet2.jpg" alt="img" />
-  <figcaption><strong>RetNet实现了“不可能三角”，它同时实现了训练并行性、良好性能和低推理成本。</strong></figcaption>
+  <figcaption><strong>RetNet 实现了“不可能三角”，它同时实现了训练并行性、良好性能和低推理成本。</strong></figcaption>
 </div>
 
 
@@ -39,7 +39,7 @@ Retentive Network（RetNet） 正是为解决这一根本矛盾而提出的。�
 
 <div align="center">
   <img src="./images/retnet1.jpg" alt="img" />
-  <figcaption><strong>RetNet与Transformer相比，实现了低成本推理（即GPU内存、吞吐量和延迟方面）、训练并行性以及良好的缩放曲线。推理成本的结果是以8k作为输入长度来报告的。</strong></figcaption>
+  <figcaption><strong>RetNet 与 Transformer 相比，实现了低成本推理（即 GPU 内存、吞吐量和延迟方面）、训练并行性以及良好的缩放曲线。推理成本的结果是以 8k 作为输入长度来报告的。</strong></figcaption>
 </div>
 
 
@@ -58,7 +58,7 @@ $$\mathbf{o}_n = Q_n \mathbf{s}_n = \sum_{m=1}^{n} Q_n A^{n-m} K^\intercal_m \ma
 
 其中，$\mathbf{s}_n$ 是 $n$ 时刻的循环状态，$\mathbf{o}_n$ 是输出。$Q_n, K_n, \mathbf{v}_n$ 是输入 $X_n$ 经过不同投影（Projection）得到的值。关键的转变发生在对状态转移矩阵 $A$ 的处理上。通过引入一个对角化的、旋转的状态矩阵 $A = \Lambda(\gamma e^{i\theta}) \Lambda^{-1}$，并将其简化为标量衰减因子 $\gamma$ 和旋转项 $e^{i\theta}$，上述求和公式可以被重写为:
 
-> 精彩亮点： RetNet用位置矩阵替代了原始Transformer中的softmax。
+> 精彩亮点： RetNet 用位置矩阵替代了原始 Transformer 中的 softmax。
 
 $$\mathbf{o}_n = \sum_{m=1}^{n} \gamma^{n-m} (Q_n e^{in\theta})(K_m e^{-im\theta})^\dagger \mathbf{v}_m$$
 
@@ -198,7 +198,7 @@ FlashAttention 2 的核心优化包括：
 “RetNet 融合 FlashAttention 2” 是一个概念性的目标，而非字面上的实现。RetNet 不能 直接使用 FlashAttention 2 的代码库。像 FlashAttention 这样的库具有“严格的约束”并“绑定到固定配置”。RetNet 的算法（无 $\text{softmax}$，但有 $\odot D$）和“非典型输入维度”使其与 FlashAttention 2 不兼容。
 
 因此，业界采用了更先进的策略来实现 RetNet 的硬件加速：
-* 方案 1：专用融合库 (如 fla-org/flash-linear-attention)像 fla 这样的库 应运而生，它们专为线性注意力变体（包括 RetNet, Mamba, RWKV 等）提供硬件加速。这些库使用 Triton（一种比 CUDA 更灵活的 GPU 编程语言）来编写新的、定制化的融合核函数。它们将 FlashAttention 的I/O 感知原理应用到了 RetNet 的特定算法上。
+* 方案 1：专用融合库 (如 fla-org/flash-linear-attention)像 fla 这样的库 应运而生，它们专为线性注意力变体（包括 RetNet, Mamba, RWKV 等）提供硬件加速。这些库使用 Triton（一种比 CUDA 更灵活的 GPU 编程语言）来编写新的、定制化的融合核函数。它们将 FlashAttention 的 I/O 感知原理应用到了 RetNet 的特定算法上。
 * 方案 2：通用融合框架 (如 AttentionEngine)最新的研究认识到，为每一种新架构（RetNet, Mamba 等）手写优化核函数是不可持续的。AttentionEngine 提出了一个解决方案：一个抽象的框架，它将所有注意力机制（包括 Retention）分解为两个基本操作：“相关性评分”（Relevance Scoring）和“聚合”（Aggregation）。
 
 该框架随后可以自动为任何新机制（包括 RetNet 的并行、循环和分块范式）生成优化的、融合的核函数，并能妥善处理其“非典型维度” 。
@@ -252,7 +252,7 @@ Microsoft TorchScale RetNet 的官方实现包含在 Microsoft 的 torchscale �
 
 这种兼容性极大地降低了研究人员和开发者尝试、微调和部署 RetNet 的门槛，是连接研究和实践的关键桥梁。
 
-Frenos 公司的白皮书提供了一个 RetNet 在现实世界中应用的绝佳案例。网络安全（如威胁检测）需要对极长的事件日志序列（Streaming Data）进行实时分析。Transformer 在处理此类任务时，它架构的“处理时间呈二次方 ($O(N^2)$) 增长” ，使其无法满足实时性要求。而Frenos 的研究发现，“无论序列长度如何，RetNet 模型都表现出恒定的处理时间，凸显了其效率和优势” 。这个案例是对 RetNet 范式 2（循环表示） 的一次强有力的实践验证。对于任何需要处理流式数据、无限上下文（Infinite Context）或受资源限制的场景（如 IoT、实时监控），RetNet 的 $O(1)$ 恒定推理成本是 Transformer 架构无法比拟的根本性优势。
+Frenos 公司的白皮书提供了一个 RetNet 在现实世界中应用的绝佳案例。网络安全（如威胁检测）需要对极长的事件日志序列（Streaming Data）进行实时分析。Transformer 在处理此类任务时，它架构的“处理时间呈二次方 ($O(N^2)$) 增长” ，使其无法满足实时性要求。而 Frenos 的研究发现，“无论序列长度如何，RetNet 模型都表现出恒定的处理时间，凸显了其效率和优势” 。这个案例是对 RetNet 范式 2（循环表示） 的一次强有力的实践验证。对于任何需要处理流式数据、无限上下文（Infinite Context）或受资源限制的场景（如 IoT、实时监控），RetNet 的 $O(1)$ 恒定推理成本是 Transformer 架构无法比拟的根本性优势。
 
 RetNet（保留网络）为解决序列建模中的“三难困境”提供了一个非常有前景的解决方案。它的核心创新在于“留存机制”和其数学上的对偶性，使得模型可以在训练时完全并行处理，而在推理时则转化为一种计算和内存效率都非常高（$O(1)$）的形式。
 

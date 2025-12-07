@@ -11,11 +11,7 @@
 首先设置实验环境，确保结果的可重现性。我们使用 Hugging Face 的 Transformers 库来加载一个适中的模型，以便在消费级 GPU 上运行实验。
 
 
-```python
-# =============================
-# 1. 实验环境设置
-# =============================
-
+```
 import torch
 import numpy as np
 import random
@@ -49,16 +45,9 @@ else:
 接下来加载一个适中的模型进行实验。我们选择 GPT-2 模型，它在保持 Transformer 架构完整性的同时，计算需求相对较小。
 
 
-```python
-# -----------------------------
-# Hugging Face 模型加载配置
-# -----------------------------
-os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-# 💡 中文模型更适合中文输入
-model_name = "uer/gpt2-chinese-cluecorpussmall"
-
+```
+# 加载模型和分词器
+model_name = "gpt2"  # 使用较小的 GPT-2 模型
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForCausalLM.from_pretrained(model_name).to(device).eval()
 
@@ -92,34 +81,37 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)
 在第一个实验中，我们完全关闭 KVCache 功能，每次生成新 token 时都重新计算所有先前 token 的 KV 值。这种方法计算效率最低，但可以帮助我们理解 KVCache 的价值。
 
 
-```python
-# =============================
-# 关闭 KV Cache 测试（Baseline）
-# =============================
-import torch
-import time
-import numpy as np
-import matplotlib
-from matplotlib import pyplot as plt
-from matplotlib import font_manager
+```
+def generate_without_kv_cache(model, input_ids, max_length=50):
+    """
+    不使用 KVCache 的生成函数
+    每次生成新 token 时都重新计算所有先前 token 的 KV 值
+    """
+    generated = input_ids
+    past_key_values = None  # 明确不使用缓存
+    
+    for _ in range(max_length):
+        with torch.no_grad():
+            outputs = model(
+                generated, 
+                past_key_values=past_key_values,
+                use_cache=False  # 强制不使用缓存
+            )
+            
+        next_token_logits = outputs.logits[:, -1, :]
+        next_token = torch.argmax(next_token_logits, dim=-1).unsqueeze(-1)
+        generated = torch.cat([generated, next_token], dim=-1)
+        
+        # 始终不使用缓存，所以 past_key_values 保持为 None
+        
+    return generated
 
-# ✅ 全局字体配置
-font_path = "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc"
-font_prop = font_manager.FontProperties(fname=font_path)
-matplotlib.rcParams['font.family'] = font_prop.get_name()
-matplotlib.rcParams['axes.unicode_minus'] = False
+# 准备输入
+input_text = "深度学习中的注意力机制是"
+input_ids = tokenizer.encode(input_text, return_tensors="pt").to(device)
 
-# -----------------------------
-# 输入文本
-# -----------------------------
-prompt = "深度学习中的注意力机制是一种"
-input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
-
-# -----------------------------
-# 生成参数
-# -----------------------------
-generate_length = 50
-temperature = 0.7  # 避免0.0造成循环输出
+# 测量显存和延迟
+torch.cuda.empty_cache()
 torch.cuda.reset_peak_memory_stats()
 
 # -----------------------------
@@ -203,27 +195,34 @@ plt.show()
 现在，我们启用 KVCache 功能。这将显著减少计算量，因为只需要计算最新 token 的注意力权重。
 
 
-```python
-# =============================
-# 开启 KV Cache 测试
-# =============================
+```
+def generate_with_kv_cache(model, input_ids, max_length=50):
+    """
+    使用 KVCache 的生成函数
+    缓存先前计算的 KV 值以避免重复计算
+    """
+    generated = input_ids
+    past_key_values = None  # 初始化为 None
+    
+    for _ in range(max_length):
+        with torch.no_grad():
+            outputs = model(
+                generated, 
+                past_key_values=past_key_values,
+                use_cache=True  # 启用缓存
+            )
+            
+        next_token_logits = outputs.logits[:, -1, :]
+        next_token = torch.argmax(next_token_logits, dim=-1).unsqueeze(-1)
+        generated = torch.cat([generated, next_token], dim=-1)
+        
+        # 更新 KVCache 以供下一次迭代使用
+        past_key_values = outputs.past_key_values
+        
+    return generated
 
-import torch
-import time
-import matplotlib.pyplot as plt
-import numpy as np
-
-# -----------------------------
-# 输入文本
-# -----------------------------
-prompt = "深度学习中的注意力机制是一种"
-input_ids = tokenizer.encode(prompt, return_tensors="pt").to(device)
-
-# -----------------------------
-# 生成参数
-# -----------------------------
-generate_length = 50
-temperature = 0.7
+# 测量显存和延迟
+torch.cuda.empty_cache()
 torch.cuda.reset_peak_memory_stats()
 
 # -----------------------------
@@ -324,10 +323,9 @@ PagedAttention 是一种高级优化技术，灵感来自操作系统中的虚�
 由于直接实现 PagedAttention 需要复杂的底层优化，我们使用 vLLM 库来实现这一功能。vLLM 是一个高效推理引擎，内置了对 PagedAttention 的支持。
 
 
-```python
-# =============================
-# PagedAttention 测试（vLLM）
-# =============================
+```
+# 安装 vLLM 库
+# !pip install vllm
 
 import time
 import numpy as np
@@ -482,188 +480,13 @@ PagedAttention 通过分页机制解决了 KVCache 的内存碎片问题。它�
 在实际应用中，KVCache 优化通常与其他技术结合使用，如量化、剪枝和蒸馏等。对于极长序列生成，还可以考虑稀疏注意力只计算与最近 token 的注意力，减少计算量；线性注意力使用线性复杂度的注意力变体；内存换计算在内存充足时缓存更多中间结果。
 
 
-```python
-# =============================
-# 6. 数据统计与结果分析
-# =============================
-
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib
-import seaborn as sns
-from matplotlib import font_manager
-
-# ✅ 全局字体配置
-font_path = "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc"
-font_prop = font_manager.FontProperties(fname=font_path)
-font_name = font_prop.get_name()
-
-matplotlib.rcParams['font.family'] = font_name
-matplotlib.rcParams['axes.unicode_minus'] = False
-
-# 同时设置 seaborn 使用相同字体
-sns.set(style="whitegrid")
-sns.set_context("notebook", font_scale=1.0)
-
-# -----------------------------
-# 在此填写前面实验中输出的数值
-# -----------------------------
-results = [
-    {
-        "模式": "关闭 KVCache",
-        "平均延迟(s)": 0.0111,
-        "峰值显存(MB)": 430.81,
-        "总耗时(s)": 0.56,
-    },
-    {
-        "模式": "开启 KVCache",
-        "平均延迟(s)": 0.0074,
-        "峰值显存(MB)": 421.29,
-        "总耗时(s)": 0.37,
-    },
-    {
-        "模式": "PagedAttention",
-        "平均延迟(s)": 0.0013,
-        "峰值显存(MB)": 413.98,
-        "总耗时(s)": 0.0716,
-    },
-]
-
-# -----------------------------
-# 构建 DataFrame
-# -----------------------------
-df = pd.DataFrame(results)
-print("✅ 实验测量汇总：")
-print(df.to_string(index=False))  # 更美观的表格输出
-print()
-
-# -----------------------------
-# 可视化 1：显存和延迟对比
-# -----------------------------
-fig, ax1 = plt.subplots(figsize=(8, 5))
-ax2 = ax1.twinx()
-
-# 设置 x 轴位置
-x_pos = range(len(df))
-modes = df["模式"].tolist()
-
-bar_colors = ["#F5B041", "#58D68D", "#5DADE2"]
-ax1.bar(x_pos, df["峰值显存(MB)"], color=bar_colors, alpha=0.7, label="峰值显存 (MB)")
-ax2.plot(x_pos, df["平均延迟(s)"], color="#C0392B", marker="o", linewidth=2, 
-         markersize=8, label="平均延迟 (s)")
-
-# 设置 x 轴刻度和标签
-ax1.set_xticks(x_pos)
-ax1.set_xticklabels(modes, fontproperties=font_prop)
-
-ax1.set_xlabel("推理优化模式", fontsize=11, fontproperties=font_prop)
-ax1.set_ylabel("峰值显存 (MB)", fontsize=11, fontproperties=font_prop)
-ax2.set_ylabel("平均延迟 (s)", fontsize=11, fontproperties=font_prop)
-ax1.set_title("不同推理优化策略的性能对比", fontsize=13, fontproperties=font_prop)
-
-# 添加图例
-lines1, labels1 = ax1.get_legend_handles_labels()
-lines2, labels2 = ax2.get_legend_handles_labels()
-legend = ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', prop=font_prop)
-
-ax1.grid(True, linestyle="--", alpha=0.5)
-plt.tight_layout()
-plt.show()
-
-# -----------------------------
-# 可视化 2：延迟与显存折线结合趋势
-# -----------------------------
-fig, ax = plt.subplots(figsize=(8, 5))
-
-# 标准化数据以便在同一图表显示
-df_normalized = df.copy()
-df_normalized["平均延迟(s)_归一化"] = df["平均延迟(s)"] / df["平均延迟(s)"].max() * 100
-df_normalized["峰值显存(MB)_归一化"] = df["峰值显存(MB)"] / df["峰值显存(MB)"].max() * 100
-
-x_pos = range(len(df))
-ax.plot(x_pos, df_normalized["平均延迟(s)_归一化"], marker="o", linewidth=2, 
-        markersize=8, label="平均延迟 (归一化%)", color="#E74C3C")
-ax.plot(x_pos, df_normalized["峰值显存(MB)_归一化"], marker="s", linewidth=2, 
-        markersize=8, label="峰值显存 (归一化%)", color="#5DADE2")
-
-ax.set_xticks(x_pos)
-ax.set_xticklabels(modes, fontproperties=font_prop)
-
-ax.set_title("延迟与显存变化趋势（归一化）", fontproperties=font_prop, fontsize=13)
-ax.set_xlabel("模式", fontproperties=font_prop, fontsize=11)
-ax.set_ylabel("归一化值 (%)", fontproperties=font_prop, fontsize=11)
-
-legend = ax.legend(prop=font_prop)
-ax.grid(True, linestyle="--", alpha=0.6)
-plt.tight_layout()
-plt.show()
-
-# -----------------------------
-# 可视化 3：原始数据对比（双 Y 轴）
-# -----------------------------
-fig, ax1 = plt.subplots(figsize=(8, 5))
-ax2 = ax1.twinx()
-
-x_pos = range(len(df))
-ax1.plot(x_pos, df["平均延迟(s)"], marker="o", linewidth=2, markersize=8, 
-         label="平均延迟 (s)", color="#E74C3C")
-ax2.plot(x_pos, df["峰值显存(MB)"], marker="s", linewidth=2, markersize=8, 
-         label="峰值显存 (MB)", color="#5DADE2")
-
-ax1.set_xticks(x_pos)
-ax1.set_xticklabels(modes, fontproperties=font_prop)
-
-ax1.set_title("延迟与显存变化趋势（原始值）", fontproperties=font_prop, fontsize=13)
-ax1.set_xlabel("模式", fontproperties=font_prop, fontsize=11)
-ax1.set_ylabel("平均延迟 (s)", fontproperties=font_prop, fontsize=11, color="#E74C3C")
-ax2.set_ylabel("峰值显存 (MB)", fontproperties=font_prop, fontsize=11, color="#5DADE2")
-
-ax1.tick_params(axis='y', labelcolor="#E74C3C")
-ax2.tick_params(axis='y', labelcolor="#5DADE2")
-
-# 添加图例
-lines1, labels1 = ax1.get_legend_handles_labels()
-lines2, labels2 = ax2.get_legend_handles_labels()
-legend = ax1.legend(lines1 + lines2, labels1 + labels2, loc='upper right', prop=font_prop)
-
-ax1.grid(True, linestyle="--", alpha=0.6)
-plt.tight_layout()
-plt.show()
-
-# -----------------------------
-# 简要字符串结论输出
-# -----------------------------
-no_cache = df.loc[df["模式"]=="关闭 KVCache"].iloc[0]
-with_cache = df.loc[df["模式"]=="开启 KVCache"].iloc[0]
-paged = df.loc[df["模式"]=="PagedAttention"].iloc[0]
-
-speedup_kv = no_cache["平均延迟(s)"] / with_cache["平均延迟(s)"]
-speedup_paged = with_cache["平均延迟(s)"] / paged["平均延迟(s)"]
-
-print("\n" + "="*60)
-print("📊 性能结论汇总")
-print("="*60)
-print(f"\n➡️  KV Cache 相比无缓存，平均加速约 {speedup_kv:.2f}x")
-print(f"➡️  PagedAttention 相比普通 KV Cache，再次加速约 {speedup_paged:.2f}x")
-print(f"➡️  三者在显存使用上差距较小，但延迟降低效果显著")
-print("\n" + "-"*60)
-print("💡 实验结论：")
-print("-"*60)
-print("   • KV Cache 有效减少重复计算，大幅提升推理速度")
-print("   • PagedAttention 进一步提升显存与计算效率，")
-print("     更适合长序列或大模型推理场景")
-print("="*60)
 ```
-
-    ✅ 实验测量汇总：
-                模式  平均延迟(s)  峰值显存(MB)  总耗时(s)
-        关闭 KVCache   0.0111    430.81  0.5600
-        开启 KVCache   0.0074    421.29  0.3700
-    PagedAttention   0.0013    413.98  0.0716
-    
-
-
-
+def practical_kv_cache_usage():
+    """
+    演示在实际项目中使用 KVCache 的最佳实践
+    """
+    input_text = "深度学习中的优化技术包括"
+    input_ids = tokenizer.encode(input_text, return_tensors="pt").to(device)
     
 ![png](Code01KVCache_files/Code01KVCache_11_1.png)
     

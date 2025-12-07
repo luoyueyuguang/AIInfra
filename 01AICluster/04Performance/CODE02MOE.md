@@ -238,7 +238,7 @@ print(f"批处理推理计算量 ({batch_size}样本): {batch_inference_flops:,}
 print(f"平均每个样本: {batch_inference_flops / batch_size:,} FLOPs")
 ```
 
-    批处理推理计算量 (32样本): 3,264,000,000 FLOPs
+    批处理推理计算量 (32 样本): 3,264,000,000 FLOPs
     平均每个样本: 102,000,000.0 FLOPs
 
 

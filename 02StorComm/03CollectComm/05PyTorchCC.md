@@ -71,68 +71,171 @@ MPI 与大模型训推系统的另一个差异之处在于 **节点（node）** 
 
 ## 通信域的 PyTorch 实现
 
-!!!!!!!!!!!!!!!!
-这里是本篇的重点，应该自己去看看 PyTorch 的通信是怎么实现的，一定一定要自己去深入看代码，深入技术，不要在视频的表面，自己要做的比视频要更加深入
+PyTorch 的分布式能力集中在 `torch.distributed`（通常简写为 `dist`）模块中。官方把这一整套能力分成几层：最上面是 `torchrun` 之类的启动器（Launcher）；中间是 DDP/FSDP/TP/PP 等高层封装的并行化 API，负责并行算法的实现；再往下是本篇重点关注的通信 API（`C10D`） 和通信后端（Communication Backend）。其中通信 API `C10D` 是所有并行策略共享的“通信层”，暴露 broadcast / all_reduce / all_gather / scatter 等原语；通信后端（NCCL/Gloo/MPI/UCC/xCCL 等）则是实现在具体网络库和硬件上执行数据搬运。
 
-PyTorch 的分布式能力位于 `torch.distributed` （一般缩写为 `dist`）模块中。目前最新版本（v2.9.0）的 `dist` 主要包含 **并行化 API（parallelism APIs）** 和 **通信 API（communications APIs）** 两部分 API。其中并行化 API 涵盖了 DDP、FSDP、TP、PP 等功能，属于较为高级的封装，而通信 API 则更关注底层通信能力。~~下图展示了 `dist` 模块的整体架构与调用路径。~~
+![02CCOverview13](images/02CCOverview13.png)
 
-> *Remark（本文的主题？）*: 本章后半部分感觉怪怪的，我理解 `distributed.py`（对应 `nn\parallel\distributed.py`）应该是实现 `DDP` 对应的功能吧？但我们这章的主题不是通信域吗？
+PyTorch 使用**进程组（ProcessGroup）**来抽象一个通信域，里面包含了一组固定的进程及其 rank 信息，所有 P2P 与集合通信原语都要在某个进程组上执行。
 
-![05PyTorchCC06](./images/05PyTorchCC06.png)
+### `C10D` 与进程组的抽象
 
-本节我们将主要关注 `dist` 的通信 API 部分并围绕通信域管理这一主题展开。`dist` 的能力主要由 C10D 库（即 C10 Distributed 的缩写，基于 C++ 代码）实现，提供了直接传输 `torch.Tensor` 的能力，而不像 FastAPI 或 gRPC 那样需要类型转换。`dist` 的语法与 MPI 非常类似。如前文所述，`dist` 使用“进程组”这一概念来表示通信域，并负责管理进程组的元信息。注意，`dist` 本身并不提供多进程启动的能力，用户需要借助 `torch.multiprocessing` 或其他工具（如 `torchrun`）来启动多进程环境。
+`C10D`（C10 Distributed）是一个 C++ 库，它直接操作 `torch.Tensor`，不用像 gRPC/FastAPI 那样做序列化、反序列化。`C10D` 在 C++ 侧定义了一个抽象类 `ProcessGroup`：每个 `ProcessGroup` 实例绑定一组固定的成员进程，并且每个实例都有自己的 rank（当前进程在该组里的编号）和 size（该组的总进程数）。此外，它还提供统一的集合通信 API：`broadcast`、`reduce`、`all_reduce`、`all_gather`、`gather`、`scatter`、`reduce_scatter`、`all_to_all`、`send`、`recv`、`barrier` 等。这些接口返回一个 `Work` 句柄，可用于 `.wait()` 同步。
 
-### 通信域的初始化
+ProcessGroup 假定成员集合是固定的，如果成员变化必须销毁原实例重新创建——这恰好就是通信域的数学假设：一组固定参与者。
 
-PyTorch 通过 `dist.init_process_group` 函数来初始化通信域。在通信域的初始化阶段，`dist` 需要进行进程的 **发现、握手与同步** 这三个步骤。根据进程发现的方式不同，`dist` 支持多种初始化方法（`init_method`），其中最常用的是基于环境变量的初始化，也即不指定 `init_method` 的默认方法。此外，用户还可以基于 URL 或使用 `store` 参数传入自定义进程发现方法。进程的握手由通信后端（如 NCCL、Gloo 等）负责完成，PyTorch 层没有提供具体接口。进程同步则则通过 `dist.barrier` 函数（或一些特殊对象——如 `dist.Work`—— 的 `.wait()` 方法）实现。下面的代码以基于环境变量的初始方法与 `backend='nccl'`为例，展示了如何初始化一个单机 8 卡 8 进程通信域。
+### 初始化默认通信域：`dist.init_process_group` / `torchrun`
 
-> Remark: 我自己只用过默认 init_method，其他几种方式常用吗？如果不常用我就不展开讲了。
+PyTorch 通过 `dist.init_process_group` 函数来初始化通信域。在通信域的初始化阶段，`dist` 需要进行进程的 **发现、握手与同步** 这三个步骤。
+
+根据进程发现（rendezvous）的方式不同，`dist` 支持多种初始化方法（`init_method`），其中最常用的是基于环境变量的初始化，也即不指定 `init_method` 的默认方法，此时默认的 `env://` 会从环境变量中自动读取 `RANK`、`WORLD_SIZE`、`MASTER_ADDR` 和 `MASTER_PORT`。其中 `MASTER_ADDR` 与 `MASTER_PORT` 用于指定主节点的地址与端口，`WORLD_SIZE` 表示进程数量。这三个环境变量在多个进程中必须相同。`RANK` 表示当前进程的 rank ID 与通信域的规模，不同进程需要设置不同的 `RANK`。此外，用户还可以基于 URL 或使用 `store` 参数传入自定义进程发现方法。在实际使用中，建议使用 `torchrun` 指令来自动拉起并配置进程及其对应参数，用户只需指定 `-n/--nnodes`、`--node_rank`、`--master_addr` 与 `--master_port` 即可。
+
+进程的握手由通信后端（如 NCCL、Gloo 等）负责完成，PyTorch 层没有提供具体接口。进程同步则则通过 `dist.barrier` 函数（或一些特殊对象——如 `dist.Work`—— 的 `.wait()` 方法）实现。
+
+下面的代码以基于环境变量的初始方法与 `backend='nccl'`为例，展示了如何初始化一个单机 8 卡 8 进程通信域。
 
 ``` python
 import os
-import torch
-import torch.distributed as dist
 from datetime import timedelta
 
-# 查看环境变量
-print(os.environ['RANK'])
-print(os.environ['WORLD_SIZE'])
-print(os.environ['MASTER_ADDR'])
-print(os.environ['MASTER_PORT'])
+import torch
+import torch.distributed as dist
 
-dist.init_process_group(backend='nccl')
+def setup_dist(backend="nccl"):
+    # 一般由 torchrun 设置，这里打印出来方便观察
+    print("RANK =", os.environ["RANK"])
+    print("WORLD_SIZE =", os.environ["WORLD_SIZE"])
+    print("MASTER_ADDR =", os.environ["MASTER_ADDR"])
+    print("MASTER_PORT =", os.environ["MASTER_PORT"])
+
+    dist.init_process_group(
+        backend=backend,               # "nccl" / "xccl" / "gloo" / "mpi" / "ucc"
+        timeout=timedelta(minutes=30), # 可选
+    )
+
+def demo_world_domain():
+    rank = dist.get_rank()
+    world_size = dist.get_world_size()
+
+    x = torch.ones(1).cuda() * (rank + 1)
+    print(f"[world] before all_reduce: rank {rank} has {x.item()}")
+
+    dist.all_reduce(x)  # 在默认通信域（全体进程）上做 all-reduce
+    print(f"[world]  after all_reduce: rank {rank} has {x.item()}")
+
+if __name__ == "__main__":
+    setup_dist(backend="nccl")
+    demo_world_domain()
+    dist.destroy_process_group()
 ```
 
 假设上述代码命名为 `init_dist.py`，则可以通过如下命令初始化通信域：
 
 ``` bash
-torchrun --nproc-per-node 8 --nnodes 1 --node_rank 0 --master-addr "localhost" --master-port 29500 init_dist.py
+torchrun --nproc-per-node 8 \
+         --nnodes 1 \
+         --node_rank 0 \
+         --master_addr localhost \
+         --master_port 29500 \
+         init_dist.py
 ```
 
-基于环境变量的初始化方法需要用户在启动多进程环境时，预先设置好 `RANK`、`WORLD_SIZE`、`MASTER_ADDR`、`MASTER_PORT` 等环境变量。其中 `MASTER_ADDR` 与 `MASTER_PORT` 用于指定主节点的地址与端口，`WORLD_SIZE` 表示进程数量。这三个环境变量在多个进程中必须相同。`RANK` 表示当前进程的 rank ID 与通信域的规模，不同进程需要设置不同的 `RANK`。在实际使用中，建议使用 `torchrun` 指令来自动拉起并配置进程及其对应参数，用户只需指定 `-n/--nnodes`、`--node_rank`、`--master_addr` 与 `--master_port` 即可。读者可以运行上述代码并观察打印出来的结果。
+读者可以运行上述代码并观察打印出来的结果。
 
----
+### 通信原语与通信域：P2P 与 Collective
+
+有了默认通信域之后，我们就可以在其上执行P2P 通信和集合通信这两大类通信原语。
+
+```python
+# file: comm_primitives_demo.py
+import os
+
+import torch
+import torch.distributed as dist
 
 
-`dist` 支持 **点对点（peer-to-peer, P2P）** 与 **集合通信（collective communication, CC）** 两类通信模式。其中：
+def setup_dist(backend="gloo"):
+    """
+    初始化默认通信域：
+    - 通过 torchrun 注入的环境变量获得 rank / world_size
+    - 调用 init_process_group 创建默认 ProcessGroup（通信域）
+    """
+    dist.init_process_group(backend=backend)
 
-- P2P 通信是进程之间一对一通信，发送方被称为源进程（source, 简称 src），接收方被称为目的进程（destination, 简称 dst）。P2P 通信的主要功能为发送与接受向量，由 `dist.send` 和 `dist.recv` 语义，用于任务间通信；集合通信则提供了 scatter/broadcast/gather/reduce/all reduce/all gather 等通信操作。
-- 集合通信：
+    rank = dist.get_rank()
+    world_size = dist.get_world_size()
+    print(f"[setup] rank = {rank}, world_size = {world_size}")
 
-其中
 
-> Remark：这一部分我也不是很懂，C的部分要写多深？有点太底层了。 ——陈彦伯
+def demo_p2p():
+    """
+    在默认通信域上做一次 P2P ping-pong：
+    rank 0 -> rank 1 send，再从 rank 1 <- rank 0 recv。
+    """
+    rank = dist.get_rank()
+    tensor = torch.zeros(1)
 
-<!-- ### 模块分层与调用路径
+    if rank == 0:
+        tensor += 1
+        print(f"[P2P] rank 0 before send, tensor = {tensor.item()}")
+        dist.send(tensor=tensor, dst=1)          # 同步发送
+        dist.recv(tensor=tensor, src=1)          # 再收回 rank 1 的数据
+        print(f"[P2P] rank 0 after  recv, tensor = {tensor.item()}")
+    elif rank == 1:
+        dist.recv(tensor=tensor, src=0)          # 先接收 rank 0 的数据
+        print(f"[P2P] rank 1 after  recv, tensor = {tensor.item()}")
+        tensor += 1
+        dist.send(tensor=tensor, dst=0)          # 再回传给 rank 0
+        print(f"[P2P] rank 1 after  send, tensor = {tensor.item()}")
+    else:
+        # 这个 demo 只假设 world_size=2，其它 rank 不参与
+        pass
 
-PyTorch 的分布式能力位于 `torch.distributed`
-- 向上提供 **P2P** 与 **Collective** 两类 API
-  - Point-2-Point Communication：提供 send 和 recv 语义，用于任务间通信；
-  - Collective Communication：提供 scatter/broadcast/gather/reduce/all reduce/all gather 通信操作；
-- 向下通过 **ProcessGroup** 适配 **NCCL / HCCL / Gloo / MPI** 等后端
-  - 如下图所示，`distributed.py`依赖于 `reducer.h` 和 `comm.h` 相关 API 的封装，其基于 `ProcessGroup.hpp`的 NCCL/GLOO/MPI/HCCL 等后端通信库实现。
-- 用户侧感知的核心是 `torch.nn.parallel.DistributedDataParallel (DDP)`；而底层通信库对接的是 `ProcessGroup` 层。 -->
 
+def demo_all_reduce():
+    """
+    在默认通信域上做一次 all_reduce：
+    - 所有 rank 各自构造一个标量 tensor
+    - 调用 all_reduce 后得到的是所有 rank 数值之和
+    """
+    rank = dist.get_rank()
+    world_size = dist.get_world_size()
+
+    # 每个 rank 先构造一个值为 rank+1 的张量
+    x = torch.ones(1) * (rank + 1)
+    print(f"[AllReduce] rank {rank} before all_reduce, x = {x.item()}")
+
+    # 不指定 group，表示在“世界通信域”上做 all_reduce
+    dist.all_reduce(x)
+
+    # 期望值：sum_{i=0}^{world_size-1} (i+1)
+    print(f"[AllReduce] rank {rank} after  all_reduce, x = {x.item()}")
+
+
+def main():
+    setup_dist(backend="gloo")  # nccl/xccl
+    demo_p2p()
+    dist.barrier()              # 同步
+    demo_all_reduce()
+    dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+在上述代码中，`setup_dist` 函数创建默认通信域，当使用 `torchrun` 运行该脚本时，`torchrun` 会为两个进程分别设置 `RANK=0/1`、`WORLD_SIZE=2` 等环境变量。`dist.init_process_group(backend="gloo")` 会基于这些信息创建一个覆盖所有 rank 的 `ProcessGroup`，即默认通信域。后续所有不带 group 参数的 `dist.xxx` 调用，都会在这个通信域上执行。
+
+```bash
+torchrun --nproc-per-node 2 comm_primitives_demo.py
+```
+
+`demo_p2p` 函数实现了默认通信域上的 P2P。该函数中使用 `rank=0` 和 `rank=1` 两个进程；`dist.send(tensor=tensor, dst=1)` 和 `dist.recv(tensor=tensor, src=0)` 都是同步操作，当函数返回时数据已经完成拷贝；虽然 send/recv 是“点对点”，但它们仍然依赖通信域里的元信息，而底层细节都被 `ProcessGroup` 封装。
+
+`demo_all_reduce` 函数实现了同一通信域上的集合通信。每个 rank 构造的张量值为 rank + 1，两个进程的初始值分别为 1 和 2；`all_reduce` 被调用时未传如 group，即在默认通信域上调用 all_reduce；执行完后，每个 rank 都会得到同样的结果 1 + 2 = 3，说明 collective 操作的结果在同一通信域中是“广播式一致”的。
+
+### 构造多个通信域：`new_group` 管理子进程组
+
+真实的大模型训练往往不只存在一个通信域，而是有多个并行域并存，例如DP/TP/PP等。对应到 PyTorch，就是多个 `ProcessGroup` 并存。我们可以用 `dist.new_group(ranks=...)` 在默认通信域的基础上创建子通信域……
 
 ### 后端通信库的能力差异
 
@@ -142,30 +245,86 @@ PyTorch 的分布式能力位于 `torch.distributed`
 
 ![05PyTorchCC07](./images/05PyTorchCC07.png)
 
-### P2P Communication 操作
-
-!!!!!!!!!!!!!!!!
-代码不要截图，插入代码，然后解读
-
-1) **初始化**：在每个进程中调用 `torch.distributed.init_process_group` 指定后端、`rank` 与 `world_size`，对分布式模块进行初始化。
-2) **通信逻辑**：按 `rank_id` 分支业务；`dist.send()/dist.recv()` 为同步版本，`isend()/irecv()` 为异步版本。
-3) **任务启动**：使用 `torch.multiprocessing` 启动多进程；`set_start_method('spawn')` 仅继承必要资源，便于跨进程安全初始化。
-
 ## PyTorch 的“计算–通信”并行
 
-PyTorch 计算与通信并行的分析主要依赖一些 profile 工具。下面展示了一个 profile 的截图，其中可以看到每个时间点有哪些操作正在进行。
+### 计算与通信解耦与性能优化策略
+
+在前置课程[02.集合通信关键作用](02CCOverview.md)中曾经提到 xCCL 通过采样**计算与通信解耦**的策略，将计算和通信两个过程独立执行，分别优化。通过性能优化策略减少通信频率，提升集群训练性能（HFU/MFU）并防止通信等待时间过长导致的“假死锁”问题。
+
+性能优化策略包含**异步 Stream 并行调度**、**通信粒度优化**和**死锁防护**。
+
+**异步 Stream 并行调度**是利用 GPU 的流（Stream），其允许将不同的流并行执行，从而实现主机（CPU）与设备（GPU）之间数据传输和计算的重叠。如计算 Stream 无需等待上一层通信完成，可连续推进下一层 FFN 与 MLA 模块计算；通信 Stream 则异步抓取已就绪的梯度与特征数据，通过 Ring AllReduce 协议后台传输，使总耗时从 “计算 + 通信” 逼近二者之中最大的耗时而非二者耗时之和。
+
+![02CCOverview09](./images/02CCOverview09.png)
+
+**通信粒度优化**是指解耦后可灵活合并通信任务，例如累积多层梯度后执行一次 AllReduce，将通信次数从 “每层 1 次” 降至 “每 N 层 1 次”，减少通信启动开销与带宽占用，进一步降低通信对流程的影响。
+
+在传统串行通信中，单个节点通信阻塞会导致全集群等待（“假死锁”）；当计算与通信解耦后，计算与通信独立，局部通信异常时，其他节点计算仍可推进，通信模块可重试容错，避免全集群挂起，从而实现**死锁防护**。
+
+PyTorch 中计算与通信并行的分析主要依赖一些 profile 工具。下面展示了一个 profile 的截图，其中可以看到每个时间点有哪些操作正在进行。
 
 ![05PyTorchCC11](./images/05PyTorchCC11.png)
 
-### Stream / Event 基础
+### 流（Stream）和事件（Event）
 
-- **Stream**：设备侧的异步命令队列；PyTorch 的**内存池与 Stream 绑定**，能把数据搬运与算子执行并行化，提高吞吐。
-- **Event**：轻量级的时序/同步原语，可在 Stream 中记录标记点用于等待或测时。
-PyTorch 通信与计算并行，主要通过 Stream（并行能力）与 Event（时序控制）这两个提供的底层能力来实现。
+**流（Stream）**是一系列在 GPU 上按顺序执行的异步 CUDA 操作，它允许将不同的流并行执行，从而实现数据传输和计算的重叠。同一个流中的操作有顺序限制，而不同流之间的操作则可以并行执行，这有助于提高 GPU 的利用率和整体性能。流的概念也为开发者提供了一种对 GPU 任务执行顺序的精细控制机制。 
+
+在 PyTorch 中，`torch.cuda.Stream()` 就是 CUDA 流的封装，其可以用来创建新的流，并使用 `torch.cuda.current_stream()` 来获取当前流。`Stream()`的主要方法有`record_event(event=None)`、`synchronize()`、`wait_event(event)`、`wait_stream(stream)`等，分别用于记录事件、同步、等待事件和与另一个流同步。
+
+**事件（Event）** 是轻量级的时序和同步原语，可在流中记录标记点用于等待或测时。PyTorch 同样提供了 CUDA 事件的封装 `torch.cuda.Event()`，以及`record()`、`synchronize()`、`wait()`等方法。
+
+PyTorch 通信与计算并行，主要通过 Stream（并行能力）与 Event（时序控制）这两个提供的底层能力来实现。如生产流中 `record()`，并在消费流中 `wait()`/`wait_event()`，进而实现跨流的同步。
+
+由于 PyTorch 的内存池（memory pool）是与 Stream 绑定的，，我们就能把数据搬运放在专门的 copy stream，把算子执行放在 compute stream，两边互不阻塞，达到数据搬运与算子执行重叠、提升吞吐。
 
 如下图所示，串行执行时是 OP1→XCCL1→OP2；并行化后，OP3 结束即可**同时**下发 XCCL2，计算流继续执行 OP4。
 
 ![05PyTorchCC12](./images/05PyTorchCC12.png)
+
+下列代码块展示了上图的 PyTorch 伪代码：
+
+```python
+import torch
+import torch.distributed as dist
+
+# ======================
+# 串行：OP1 -> XCCL1 -> OP2
+# ======================
+
+x1 = ...                      # 本批输入
+out1 = OP1(x1)                # 计算 OP1（默认流）
+
+dist.all_reduce(out1)         # XCCL1：通信（阻塞/默认流上执行）
+
+out2 = OP2(out1)              # 计算 OP2（通信完成后再继续）
+
+# ===========================================
+# 并行：OP3 结束即可同时下发 XCCL2，计算流继续 OP4
+# ===========================================
+
+compute = torch.cuda.default_stream()     # 计算流
+comm    = torch.cuda.Stream()             # 通信流（XCCL 专用）
+ev_done = torch.cuda.Event()              # 用于串联：OP3 -> XCCL2
+
+x3, x4 = ..., ...                         # x3=当前批；x4=下一批（或不依赖 XCCL2 的计算）
+
+# --- OP3：先在计算流完成本批计算 ---
+with torch.cuda.stream(compute):
+    out3 = OP3(x3)                        # 计算 OP3
+    compute.record_event(ev_done)         # 记录 OP3 完成时刻
+
+# --- XCCL2：在通信流等待 OP3 完成后立即下发 ---
+with torch.cuda.stream(comm):
+    comm.wait_event(ev_done)              # 精确依赖：仅等待 OP3
+    handle = dist.all_reduce(out3, async_op=True)  # XCCL2 异步启动（通信流）
+
+# --- 计算流同时继续后续计算 OP4（与 XCCL2 并行）---
+with torch.cuda.stream(compute):
+    out4 = OP4(x4)                        # 计算 OP4（与上面的 all_reduce 并行执行）
+
+# （需要使用 XCCL2 结果时再等待）
+handle.wait()                             # 或 comm.synchronize()
+```
 
 ### 计算流之间的同步
 
@@ -175,18 +334,61 @@ Host 下发与 Device 执行是**异步**的：先 Record event，再在目标 S
 
 ### 计算流与通信流的同步与内存池归属
 
-!!!!!!!!!!!!!!!!
-你真的懂了吗？
+在 `ProcessGroupXCCL` 中，集合通信接口会经由 `ProcessGroupXCCL::collective()` 把实际的 XCCL 调用 FN 下发到**通信流（xcclStreams）**。如下图所示，如果 OP1 在计算流上写出的输出 Tensor，紧接着在通信流上作为 XCCL1 的输入使用，而两条流之间没有事件依赖，就会出现“OP1 写、XCCL1 读”的潜在竞争——两个异步 stream 会同时访问同一块显存。为了避免这种数据竞争，需要在计算流和通信流之间建立事件同步。PyTorch 的设备内存分配器是 stream-aware 的，会把 Tensor 的生产 stream 记录下来，再结合事件机制保证不同 stream 上的读/写顺序。
 
-在 `ProcessGroupXCCL` 中，集合通信接口会经由 `ProcessGroupXCCL::collective()` 把实际的 XCCL 调用 FN 下发到 **通信流（xcclStreams）**。如下图所示，如果 OP1 的输出 Tensor 仍归属于**计算流的内存池**，会出现“OP1 写、XCCL1 读”的潜在竞争，需要在两条流之间建立事件依赖；需要用于通信的 Tensor，其内存应由对应 Stream 的内存池管理。
+```python
+import torch
+
+compute_stream = torch.cuda.default_stream()     # 计算流
+comm_stream    = torch.cuda.Stream()             # 通信流
+
+x = torch.randn(1024, device="cuda")
+
+# OP1 在计算流上写 tensor
+with torch.cuda.stream(compute_stream):
+    y = op1(x)  # 任意一个会写 y 的算子，比如 y = model(x)
+
+# 错误示例：立刻在通信流上读 y，没有做任何事件同步
+with torch.cuda.stream(comm_stream):
+    xccl_allreduce(y)  # 代表在 XCCL 通信流上发起 collective
+                       # 可能在 OP1 还没写完时就开始读 y
+```
 
 ![05PyTorchCC14](./images/05PyTorchCC14.png)
 
-为解决上述异步问题，`collective()` 内部通过 **`syncStream()`**：在**计算流**上 Record event，并在**通信流**上执行 **notify/wait**，确保“先写后读”，消除并发读写问题。其时序图如下。
+为解决上述异步问题，`collective()` 内部通过 **`syncStream()`**：在**计算流**上 `record` 一个 event，并在**通信流**上对该 event 执行 **`wait_event`**，确保先写后读，消除并发读写问题。
+
+```python
+import torch
+
+compute_stream = torch.cuda.default_stream()
+comm_stream = torch.cuda.Stream()
+ready = torch.cuda.Event(blocking=False)
+
+x = torch.randn(1024, device="cuda")
+
+# 1）在计算流上执行 OP1，并在 OP1 后 record 一个 event
+with torch.cuda.stream(compute_stream):
+    y = op1(x)           # OP1：在 compute_stream 上写 y
+    ready.record()       # 等价于 ready.record(compute_stream)
+
+# 2）在通信流上等待这个 event，然后再发起 XCCL 通信
+comm_stream.wait_event(ready)   # 或者 ready.wait(comm_stream)
+
+with torch.cuda.stream(comm_stream):
+    xccl_allreduce(y)    # XCCL1：此时可以安全地读 y，不会早于 OP1 完成
+```
 
 ![05PyTorchCC15](./images/05PyTorchCC15.png)
 
-反向场景（通信→计算）则由 **`work.wait()`** 完成：`WorkXCCL::synchronizeStreams()` 在需要处进行 block，并依赖于通信流上 `xcclEndEvents_` 记录的事件来完成跨流同步。
+反向场景（通信到计算）则由 **`work.wait()`** 完成：`WorkXCCL::synchronizeStreams()` 在当前计算流上插入一个对通信结束事件 (`xcclEndEvents_`) 的 wait，在需要处进行 block，从而保证“先完成通信，再继续后续计算”。
+
+```python
+work = dist.all_reduce(y, async_op=True)
+# ... 
+work.wait()       # 等价于 WorkXCCL::synchronizeStreams()
+z = op2(y)        # 之后才能安全使用 y
+```
 
 ![05PyTorchCC16](./images/05PyTorchCC16.png)
 
@@ -216,3 +418,4 @@ Host 下发与 Device 执行是**异步**的：先 Record event，再在目标 S
 - [NCCL 官方文档](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html)
 - https://en.wikipedia.org/wiki/NVLink#Service_software_and_programming
 - https://en.wikipedia.org/wiki/Collective_operation
+- [pytorch 中的 stream 和 event](https://yaopepe.com/2025/09/07/distribute/stream_event/)

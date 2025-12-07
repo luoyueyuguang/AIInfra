@@ -1,6 +1,8 @@
 <!--Copyright © ZOMI 适用于[License](https://github.com/Infrasys-AI/AIInfra)版权许可-->
 
-# CODE 04: KTransformers 核心实现
+# CODE 04: KTransformers 核心实现(DONE)
+
+> Author by: 韩钰
 
 KTransformers 是清华大学 KVCache.AI 团队与趋境科技联合开发的开源大语言模型推理优化框架，其核心创新在于能够在单张 24GB 显存的消费级显卡上运行 DeepSeek-R1/V3 等 671B 参数的满血版大模型。
 
@@ -10,16 +12,54 @@ KTransformers 是清华大学 KVCache.AI 团队与趋境科技联合开发的开
 
 我们将使用 PyTorch 来实现这个简易版本。请确保你的环境中有支持 GPU 的较新版本 PyTorch（需安装对应 CUDA 版本）：
 
+
 ```bash
+%%bash
 # 推荐安装支持 CUDA 12.1 的 PyTorch（根据显卡型号调整 CUDA 版本，如 cu118/cu121）
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 # 若仅需 CPU 测试（无法验证显存优化），使用基础命令：
 # pip install torch torchvision torchaudio
 ```
 
+    Looking in indexes: https://download.pytorch.org/whl/cu121
+    Requirement already satisfied: torch in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (2.8.0)
+    Requirement already satisfied: torchvision in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (0.23.0)
+    Requirement already satisfied: torchaudio in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (2.8.0)
+    Requirement already satisfied: filelock in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (3.17.0)
+    Requirement already satisfied: typing-extensions>=4.10.0 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (4.15.0)
+    Requirement already satisfied: sympy>=1.13.3 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (1.14.0)
+    Requirement already satisfied: networkx in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (3.4.2)
+    Requirement already satisfied: jinja2 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (3.1.6)
+    Requirement already satisfied: fsspec in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (2025.10.0)
+    Requirement already satisfied: nvidia-cuda-nvrtc-cu12==12.8.93 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (12.8.93)
+    Requirement already satisfied: nvidia-cuda-runtime-cu12==12.8.90 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (12.8.90)
+    Requirement already satisfied: nvidia-cuda-cupti-cu12==12.8.90 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (12.8.90)
+    Requirement already satisfied: nvidia-cudnn-cu12==9.10.2.21 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (9.10.2.21)
+    Requirement already satisfied: nvidia-cublas-cu12==12.8.4.1 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (12.8.4.1)
+    Requirement already satisfied: nvidia-cufft-cu12==11.3.3.83 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (11.3.3.83)
+    Requirement already satisfied: nvidia-curand-cu12==10.3.9.90 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (10.3.9.90)
+    Requirement already satisfied: nvidia-cusolver-cu12==11.7.3.90 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (11.7.3.90)
+    Requirement already satisfied: nvidia-cusparse-cu12==12.5.8.93 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (12.5.8.93)
+    Requirement already satisfied: nvidia-cusparselt-cu12==0.7.1 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (0.7.1)
+    Requirement already satisfied: nvidia-nccl-cu12==2.27.3 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (2.27.3)
+    Requirement already satisfied: nvidia-nvtx-cu12==12.8.90 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (12.8.90)
+    Requirement already satisfied: nvidia-nvjitlink-cu12==12.8.93 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (12.8.93)
+    Requirement already satisfied: nvidia-cufile-cu12==1.13.1.3 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (1.13.1.3)
+    Requirement already satisfied: triton==3.4.0 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torch) (3.4.0)
+    Requirement already satisfied: setuptools>=40.8.0 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from triton==3.4.0->torch) (78.1.1)
+    Requirement already satisfied: numpy in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torchvision) (2.0.1)
+    Requirement already satisfied: pillow!=8.3.*,>=5.3.0 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from torchvision) (11.3.0)
+    Requirement already satisfied: mpmath<1.4,>=1.1.0 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from sympy>=1.13.3->torch) (1.3.0)
+    Requirement already satisfied: MarkupSafe>=2.0 in /root/miniconda3/envs/py310-env/lib/python3.10/site-packages (from jinja2->torch) (3.0.2)
+
+
+    [33mWARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.[0m[33m
+    [0m
+
 ## 2. MoE 模型实现
 
 我们首先实现一个简化的混合专家（MoE）层。MoE 模型的核心思想是将一个大模型分解为多个较小的“专家”网络，并通过一个门控网络来动态决定对于给定的输入，应该使用哪些专家。
+
 
 ```python
 import torch
@@ -43,6 +83,7 @@ class SimpleExpert(nn.Module):
 ```
 
 `SimpleExpert` 类是一个简单的前馈神经网络，模拟 MoE 模型中的一个“专家”。在实际的大模型中，每个专家可能非常庞大，拥有数十亿参数。
+
 
 ```python
 class SimpleMoELayer(nn.Module):
@@ -117,6 +158,7 @@ KTransformers 的关键在于利用 MoE 模型的**稀疏激活**特性。在前
 这意味着大部分专家在大部分时间是空闲的。KTransformers 巧妙地利用了这一特性，将未被激活的专家保持在 CPU 内存中，仅在需要时才将其加载到 GPU 进行计算，从而极大地降低了 GPU 的显存压力。
 
 现在，我们来实现最关键的部分：一个能够**将专家动态地在 CPU 和 GPU 之间移动**的 MoE 层。这是对 KTransformers “专家卸载”思想的简化模拟。
+
 
 ```python
 class DeviceAwareMoELayer(nn.Module):
@@ -206,6 +248,7 @@ class DeviceAwareMoELayer(nn.Module):
 
 下面我们编写一个简单的测试脚本来对比两种 MoE 层的显存使用情况。
 
+
 ```python
 import torch
 
@@ -284,29 +327,26 @@ def test_memory_usage():
 test_memory_usage()
 ```
 
-运行上述脚本，你可能会看到类似以下的输出：
+    Using device: cuda:0
+    Input shape: torch.Size([4, 64, 512])
+    
+    ==================================================
+    Testing Standard SimpleMoELayer (all experts on GPU)
+    GPU Memory - Before model: 0.50 MB
+    GPU Memory - After loading model: 64.09 MB (Model Parameters)
+    GPU Memory - After forward pass: 8.62 MB (Activations & Buffers)
+    GPU Memory - Total after forward: 73.22 MB
+    
+    ==================================================
+    Testing DeviceAwareMoELayer (experts dynamically moved)
+    GPU Memory - Before model: 73.22 MB
+    GPU Memory - After loading model: 0.02 MB (Only Gating Network)
+    GPU Memory - After forward pass: 64.58 MB (Loaded Experts + Activations)
+    GPU Memory - Total after forward: 137.81 MB
+    
+    Output shape from standard MoE: torch.Size([4, 64, 512])
+    Output shape from device-aware MoE: torch.Size([4, 64, 512])
 
-```
-Using device: cuda:0
-Input shape: torch.Size([4, 64, 512])
-
-==================================================
-Testing Standard SimpleMoELayer (all experts on GPU)
-GPU Memory - Before model: 0.00 MB
-GPU Memory - After loading model: 67.25 MB (Model Parameters)
-GPU Memory - After forward pass: 2.50 MB (Activations & Buffers)
-GPU Memory - Total after forward: 69.75 MB
-
-==================================================
-Testing DeviceAwareMoELayer (experts dynamically moved)
-GPU Memory - Before model: 0.00 MB
-GPU Memory - After loading model: 0.01 MB (Only Gating Network) # 显著减少！
-GPU Memory - After forward pass: 18.00 MB (Loaded Experts + Activations) # 按需加载！
-GPU Memory - Total after forward: 18.01 MB
-
-Output shape from standard MoE: torch.Size([4, 64, 512])
-Output shape from device-aware MoE: torch.Size([4, 64, 512])
-```
 
 在**标准 MoE 层**中，加载模型时，**所有专家**的参数都被立即转移到 GPU 显存，占用了 **67.25 MB**。这部分内存在整个生命周期内都会被占用。而在**设备感知 MoE 层**中，加载模型时，**只有非常小的门控网络**被加载到 GPU，仅占用 **0.01 MB**。
 

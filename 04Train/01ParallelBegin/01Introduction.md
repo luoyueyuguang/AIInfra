@@ -45,7 +45,7 @@ $$\text{计算速率} = \text{单设备计算速率} \times \text{设备数} \ti
 
 **大模型分布式训练主要解决以下三个问题：**
 
-1.  内存问题：单个GPU的现存优先，显然无法容纳整个大模型及其优化器状态等，分布式框架将模型的不同部分切分到多个设备上，支持部署和训练 Transformer 类结构的大模型；
+1.  内存问题：单个 GPU 的现存优先，显然无法容纳整个大模型及其优化器状态等，分布式框架将模型的不同部分切分到多个设备上，支持部署和训练 Transformer 类结构的大模型；
 2.  计算问题：训练大模型需要海量的计算操作，耗时极长。分布式训练提供多种分布式并行模式，包括数据并行、模型并行和流水并行，即所谓的多维并行模式；
 3.  通信问题：在分布式环境下，设备间的频繁通信（如梯度同步、激活值传递）会成为新的瓶颈。使能层通过集合通信（Collective Communication）或参数服务器（Parameter Server）方式来优化数据传输，进行资源整合。
 
@@ -57,12 +57,12 @@ $$\text{计算速率} = \text{单设备计算速率} \times \text{设备数} \ti
 
 ### Huggingface Accelerate
 
-Huggingface Accelerate是一个主打轻量级、易用性的分布式训练加速库，专为Transformer类模型设计，旨在让开发者以最少的代码改动，将其 PyTorch 脚本从单机扩展到任意分布式环境。其核心能力包括：
-1. **自动适配硬件环境**：Huggingface Accelerate可以自动检测并适配单机多卡/多机多卡、GPU/TPU等多种环境，使用户无需关注底层细节；
-2. **生态兼容性**：Huggingface Accelerate提供了多种加速策略和自动检测加速器的功能，支持混合精度训练、梯度累积，兼容Huggingface Transformers/Datasets生态；
-3. **极简迁移接口**：Huggingface Accelerate的核心理念是“不改变原生 PyTorch 代码逻辑”，其提供了简单的API接口，开发者可以方便地使用深度学习框架，如PyTorch和TensorFlow，并快速地将单机代码迁移至分布式环境。
+Huggingface Accelerate 是一个主打轻量级、易用性的分布式训练加速库，专为 Transformer 类模型设计，旨在让开发者以最少的代码改动，将其 PyTorch 脚本从单机扩展到任意分布式环境。其核心能力包括：
+1. **自动适配硬件环境**：Huggingface Accelerate 可以自动检测并适配单机多卡/多机多卡、GPU/TPU 等多种环境，使用户无需关注底层细节；
+2. **生态兼容性**：Huggingface Accelerate 提供了多种加速策略和自动检测加速器的功能，支持混合精度训练、梯度累积，兼容 Huggingface Transformers/Datasets 生态；
+3. **极简迁移接口**：Huggingface Accelerate 的核心理念是“不改变原生 PyTorch 代码逻辑”，其提供了简单的 API 接口，开发者可以方便地使用深度学习框架，如 PyTorch 和 TensorFlow，并快速地将单机代码迁移至分布式环境。
 
-Huggingface Accelerate适合10亿到千亿参数规模的大模型的快速训练，尤其适合科研与原型开发。
+Huggingface Accelerate 适合 10 亿到千亿参数规模的大模型的快速训练，尤其适合科研与原型开发。
 
 ### Megatron-LM
 
@@ -92,7 +92,7 @@ Megatron-LM 是 **NVIDIA** 开发的分布式框架，并利用 Megatron-Core �
 ### DeepSpeed
 
 本部分介绍微软开发的 DeepSpeed，重点阐述其加速训练的手段、辅助工具和易用性。
-（github上显示今年似乎还在更新）
+（github 上显示今年似乎还在更新）
 DeepSpeed 是 **微软** 开发的一款致力于提升 **大模型训练效率** 和可扩展性的优秀工具。其主要优势包括：
 
 1.  **加速训练手段**：DeepSpeed 集成了数据并行（尤其是 ZeRO 系列）、模型并行、梯度累积、动态缩放、混合精度等技术，显著加速模型训练，提升训练效率，促进模型快速收敛；

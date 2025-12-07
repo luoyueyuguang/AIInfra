@@ -90,15 +90,21 @@ FSDP 前向按需 **AllGather** 权重分片，反向通过 **ReduceScatter** �
 > 算法上，Ring 与 HD 在单位数据上的总通信量接近，但步数差异使得它们在小包/高延迟和超大包/带宽饱和的两端各有优势。
 > 系统上，分层 AllReduce、就近通信与合适的 bucket 粒度，几乎是所有大规模训练稳定扩展到多机多节点的共同秘诀。
 
-## 集合通信与分布式
+### 计算与通信解耦
 
-!!!!!!!!!!!分布式训练的内容，重点的是讲解各种并行，对集合通信的影响，特别是深入，一定要深入，例如传输多少数据量。不同的集合通信的源语具体对模型训练和推理的影响。
+> Remark: 计算与通信解耦的主要内容移动到了 [05.通信域与 PyTorch 实现](./05PyTorchCC.md) "PyTorch 的“计算–通信”并行"。
+
+在大模型训练中，集群算力利用率（MFU）直接决定训练周期，而传统 “计算 - 通信串行” 模式是制约 MFU 的核心瓶颈。其根本问题在于强同步依赖：每一层网络计算出梯度后，必须等待该梯度通过 AllReduce 等集合通信完成跨节点同步，才能启动下一层计算。
+
+以 6710 亿参数的 DeepSeek-V3 为例，其包含 61 个 Transformer 层，且第 4 至 61 层为 MoE 架构，这类架构天然存在专家数据跨节点调度需求，通信压力显著高于密集模型。若采用传统串行模式，按实测数据单层级计算耗时 10ms、跨节点通信耗时 3ms 计算，每层总耗时将达 13ms，且 MoE 架构未优化时计算：通信比可降至 1:1，大量 GPU 计算单元因等待专家数据传输陷入闲置，2048 卡集群的算力浪费问题尤为突出。
+
+![05PyTorchCC12](./images/05PyTorchCC12.png)
+
+为解决这一问题，xCCL （XXXX Collective Communication Library）采用**计算与通信解耦**的策略，将计算和通信两个过程独立执行，分别优化。通过性能优化策略减少通信频率，提升集群训练性能（HFU/MFU）并防止通信等待时间过长导致的“假死锁”问题。xCCL 等集合通信库的 “计算与通信解耦” 策略，支撑千卡 / 万卡级集群高效运行，成为大模型工程化落地的关键技术基石。有关计算与通信解耦的详细内容及其实现原理请继续阅读后续课程[05.通信域与 PyTorch 实现](./05PyTorchCC.md)。
 
 ## xCCL 基本架构
 
-!!!!!!!写文章是为了更加深入理解这个知识点的原理，这里 xCCL 基本架构，没有展开，到底 xCCL 有哪些模块，有哪些内容。这块要自己深入 看不同的 xCCL 库，然后抽象出来一个共性的架构，这是我强调的来源于视频的内容，但是要比视频的内容深入很多很多的原因
-
-xCCL（XXXX Collective Communication Library）架构源自于高性能计算（HPC）的集合通信架构，经过优化和演进，以满足当前 AI 场景的特殊通信需求。本节从 HPC 和 xCCL 通信架构对比介绍，展示二者的异同。
+xCCL（XXXX Collective Communication Library）架构源自于高性能计算（HPC）的集合通信架构，经过优化和演进，以满足当前 AI 场景的特殊通信需求。本节从 HPC 和 xCCL 通信架构对比介绍，展示二者的异同。有关 xCCL 更加详细的内容请阅读后续课程[XCCL 通信库](../04CommLibrary/02XCCL.md)。
 
 ### HPC 到 AI 通信栈基本架构
 
@@ -118,7 +124,7 @@ xCCL（XXXX Collective Communication Library）架构源自于高性能计算（
 
 ### xCCL 基本架构
 
-如下图 HCCL 所示，xCCL 集合通信库软件架构分为**适配层**、**集合通信业务层**和**集合通信平台层**，包含**框架适配**、**通信框架**、**通信算法**和**硬件资源交互**四个模块。
+如下图[华为 HCCL](../04CommLibrary/08HCCLIntro.md) 所示，xCCL 集合通信库软件架构分为**适配层**、**集合通信业务层**和**集合通信平台层**，包含**框架适配**、**通信框架**、**通信算法**和**硬件资源交互**四个模块。
 
 ![02CCOverview12](./images/02CCOverview12.png)
 
@@ -130,19 +136,19 @@ xCCL（XXXX Collective Communication Library）架构源自于高性能计算（
 
 ### 适配层：接入框架与分布式加速库
 
-!!!!!!!!! 太浅了，到底 xCCL 这些库，是如何接入 pytorch 这个框架的？代码和架构图示例，深入去学习了解。
-
 xCCL 的适配层是连接 xCCL 底层通信能力与上层深度学习框架、分布式加速库的桥梁。其核心目标是解耦通信逻辑与业务逻辑，让框架无需关注 xCCL 底层的硬件细节和算法选择，只需通过统一接口调用通信功能；同时让 xCCL 的高性能特性能无缝融入上层训练和推理流程。
 
-训练框架（如 PyTorch）上层接管“何时、对哪些张量、以什么粒度发起通信”，最终仍通过 `torch.distributed` 的 `ProcessGroup` 调用底层通信库（NCCL/HCCL/Gloo）：
+下图是 PyTorch 2.9.1 分布式的架构图。
 
-- 上层（如 DeepSpeed / Megatron-LM / ColossalAI / MindSpeed）  
-  - 负责并行策略与张量切分，组织 bucket，决定 AllReduce/AllGather/All2All/P2P 的触发时机与先后顺序。  
-  - 通过 reducer/hook 把 grad bucket 推入队列，调度后台循环线程。  
-- 中间（`PyTorch torch.distributed`）
-  - 将高层请求转为 `ProcessGroup::collective` 调用，在通信流 `xcclStreams` 上排队执行，并用 event 在计算流与通信流之间做依赖同步，确保先写后读/先聚合再使用。  
-- 底层（NCCL/HCCL/Gloo/oneCCL/MSCCL）  
-  - 依据拓扑与算法（Ring/Tree/HD/2D-Torus）完成具体的路由与搬运，并利用 GPU/NPU 的 DMA/核外执行能力与 SHARP/在网计算等优化实现高吞吐。
+![02CCOverview13](images/02CCOverview13.png)
+
+如图所示，在 PyTorch 里，xCCL 适配层是以一个 `C10D` 后端的形式接入 `torch.distributed` 的：它在 C++ 侧实现 `ProcessGroupXCCL`，按照 PyTorch C10D 约定封装 `all_reduce`、`broadcast`、`all_gather`、`reduce_scatter` 等集合通信原语以及必要的点对点通信接口，在这些接口内部完成通信域到 xCCL 通信域的映射、Rank 与拓扑信息同步、XPU 设备与计算流绑定，以及对底层通信框架和通信算法模块的调用。
+
+随后通过 Python 扩展在导入时调用 `torch.distributed.Backend.register_backend("xccl", create_pg_xccl)` 将该实现注册成名为 `"xccl"` 的后端。
+
+这样，当用户使用 `torchrun` 启动训练并在脚本中执行 `dist.init_process_group(backend="xccl")` 时，PyTorch 的 rendezvous 机制根据环境变量完成全局 rank/world size 等元数据交换，构造出 `ProcessGroupXCCL` 作为默认进程组。
+
+之后无论是用户显式调用的 `dist.all_reduce`、`dist.all_gather`，还是 DDP、FSDP 等高层分布式加速库内部发起的梯度同步、参数广播请求，都会统一落到 `C10D` 抽象上，再由 `ProcessGroupXCCL` 转译为 xCCL 的具体通信算子调用和资源调度，从而在不改变上层训练代码的前提下，把 xCCL 的高性能集合通信能力透明地注入到完整的 PyTorch 分布式训练栈中。更详细的解释和代码示例请阅读后续课程[05.通信域与 PyTorch 实现](./05PyTorchCC.md)。
 
 > 加速库的加速，大多来自粒度控制（分片/bucket）、触发时机（重叠/合并）、分层通信（节点内优先）与对底层 ProcessGroup 的正确使用，而非绕开 NCCL/HCCL 另起炉灶。
 
@@ -152,7 +158,7 @@ xCCL 的适配层是连接 xCCL 底层通信能力与上层深度学习框架、
 
 **通信框架**负责通信域管理，通信算子的业务串联，协同通信算法模块完成算法选择，协同通信平台模块完成资源申请并实现集合通信任务的下发。
 
-xCCL 会根据系统配置、网络拓扑、数据量动态选择算法，例如 NCCL 的 All-Reduce 对小数据用双二叉树算法、大数据用环形算法，MSCCL 的 All-Reduce 支持All-Pairs、Hierarchical 等多算法切换。
+xCCL 会根据系统配置、网络拓扑、数据量动态选择算法，例如 NCCL 的 All-Reduce 对小数据用双二叉树算法、大数据用环形算法，MSCCL 的 All-Reduce 支持 All-Pairs、Hierarchical 等多算法切换。
 
 **通信算法**作为集合通信算法的承载模块，提供特定集合通信操作的资源计算，并根据通信域信息完成通信任务编排。不同 xCCL 的通信算法实现有所侧重，其核心源于底层硬件适配目标、上层应用场景优化方向和灵活性设计。
 
@@ -178,24 +184,6 @@ xCCL 的**集合通信平台层**是其核心底层组件，核心目标是直�
 
 **ACCL** 则针对阿里云的异构网络环境，采用多 NIC 绑定策略，将跨节点通信分散到多个网卡，提升并行性。
 
-## 计算与通信解耦
-
-在大模型训练中，集群算力利用率（MFU）直接决定训练周期，而传统 “计算 - 通信串行” 模式是制约 MFU 的核心瓶颈。其根本问题在于强同步依赖：每一层网络计算出梯度后，必须等待该梯度通过 AllReduce 等集合通信完成跨节点同步，才能启动下一层计算。
-
-以 6710 亿参数的 DeepSeek-V3 为例，其包含 61 个 Transformer 层，且第 4 至 61 层为 MoE 架构，这类架构天然存在专家数据跨节点调度需求，通信压力显著高于密集模型。若采用传统串行模式，按实测数据单层级计算耗时 10ms、跨节点通信耗时 3ms 计算，每层总耗时将达 13ms，且 MoE 架构未优化时计算：通信比可降至 1:1，大量 GPU 计算单元因等待专家数据传输陷入闲置，2048 卡集群的算力浪费问题尤为突出。
-
-![02CCOverview09](./images/02CCOverview09.png)
-
-上图 Stream 77 和 14 分别是计算和通信的进程。!!!!!!请继续补充，说明原理，建议换一个图，自己做个 profiling，然后截图。
-
-为解决这一问题，xCCL 采用**计算与通信解耦**的策略，将计算和通信两个过程独立执行，分别优化。通过性能优化策略减少通信频率，提升集群训练性能（HFU/MFU）并防止通信等待时间过长导致的“假死锁”问题。xCCL、NCCL 等集合通信库的 “计算与通信解耦” 策略，支撑千卡 / 万卡级集群高效运行，成为大模型工程化落地的关键技术基石：
-
-- 异步 Stream 并行调度：依托 GPU Stream 实现计算与通信的物理隔离。计算 Stream 无需等待上一层通信完成，可连续推进下一层 FFN 与 MLA 模块计算；通信 Stream 则异步抓取已就绪的梯度与特征数据，通过 Ring AllReduce 协议后台传输，使总耗时从 “计算 + 通信” 逼近纯计算耗时。
-
-- 通信粒度优化：解耦后可灵活合并通信任务，例如累积多层梯度后执行一次 AllReduce，将通信次数从 “每层 1 次” 降至 “每 N 层 1 次”，减少通信启动开销与带宽占用，进一步降低通信对流程的影响。
-
-- 死锁防护：传统串行中单个节点通信阻塞会导致全集群等待（“假死锁”）；解耦后计算与通信独立，局部通信异常时，其他节点计算仍可推进，通信模块可重试容错，避免全集群挂起。
-
 ## 总结与思考
 
 通过本章的学习，我们知道**并行方式决定原语，原语决定通信量与拓扑选择**，并说明了 xCCL 在框架调度和通信执行之间如何通过 bucket、分层与流/事件机制达成**计算-通信的高效重叠**。理解这些映射关系，是扩大模型规模、提升集群 MFU、降低网络成本的重要前提。
@@ -208,5 +196,6 @@ xCCL 的**集合通信平台层**是其核心底层组件，核心目标是直�
 
 ## 参考与引用
 
-- HCCL概述 HCCL集合通信库-CANN商用版8.2.RC1开发文档-昇腾社区. Available at: https://www.hiascend.com/document/detail/zh/canncommercial/82RC1/hccl/hcclug/hcclug_000001.html#ZH-CN_TOPIC_0000002370191085__section17991201643111 (Accessed: 13 October 2025). 
+- HCCL 概述 HCCL 集合通信库-CANN 商用版 8.2.RC1 开发文档-昇腾社区. Available at: https://www.hiascend.com/document/detail/zh/canncommercial/82RC1/hccl/hcclug/hcclug_000001.html#ZH-CN_TOPIC_0000002370191085__section17991201643111 (Accessed: 13 October 2025). 
 - Weingram, A. et al. (2023) ‘xCCL: A survey of industry-led collective communication libraries for deep learning’, Journal of Computer Science and Technology, 38(1), pp. 166–195. doi:10.1007/s11390-023-2894-6. 
+- [tattaka - Distributed and Parallel Training for PyTorch](https://speakerdeck.com/tattaka/distributed-and-parallel-training-for-pytorch?slide=3)
